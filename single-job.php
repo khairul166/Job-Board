@@ -183,7 +183,7 @@ if (have_posts()) :
             </div>
             <div class="col-lg-4">
 <!-- Apply Form Card -->
-<div class="apply-form">
+<div class="section-card apply-form">
     <?php
         global $wpdb;
     $table = $wpdb->prefix . 'job_applications';
@@ -261,15 +261,32 @@ if (have_posts()) :
                     </div>
                 </div>
                 <!-- Company Info -->
-                <?php if ($company_name || $company_description) : ?>
+
                 <div class="section-card">
-                    <h5 class="mb-3"><?php _e('About', 'job-listing'); ?> <?php echo esc_html($company_name); ?></h5>
-                    <p class="small"><?php echo wp_kses_post($company_description); ?></p>
+                    <h5 class="mb-3">About Us</h5>
+                    <p class="small">“Easy Fashion Ltd.” is an ultimate shopping destination where you can shop the widest selection of casual or luxurious; trendy, unique or traditional cloths and accessories delivered to you directly anywhere in Bangladesh. Daily lives, occasions, needs and necessities, celebrations, desires and wish lists – “Easy Fashion Ltd.” check it all off. We offer free returns and easy payment method. Our prime focus is the youth and we are here to be a part of their lives, not just by selling the brands which rest under their hood but also by writing a part of their daily life stories. We do not just sell lifestyle products, we are here to become a lifestyle! Follow us on Facebook and Twitter to stay updated about our latest offers and promotions.</p>
                     <div class="text-center">
-                        <a href="#" class="btn btn-outline-success btn-sm"><?php _e('View Company Profile', 'job-listing'); ?></a>
+                        <a href="https://easyfashion.com.bd/about/" target="_blank" class="btn btn-outline-success btn-sm"><?php _e('View Company Profile', 'job-listing'); ?></a>
                     </div>
                 </div>
-                <?php endif; ?>
+                <div class="section-card">
+                    <h5 class="mb-3">Share This</h5>
+                    <!-- AddToAny BEGIN -->
+                    <div class="a2a_kit a2a_kit_size_32 a2a_default_style">
+                    <a class="a2a_dd" href="https://www.addtoany.com/share"></a>
+                    <a class="a2a_button_facebook"></a>
+                    <a class="a2a_button_email"></a>
+                    <a class="a2a_button_whatsapp"></a>
+                    <a class="a2a_button_facebook_messenger"></a>
+                    <a class="a2a_button_google_gmail"></a>
+                    <a class="a2a_button_linkedin"></a>
+                    <a class="a2a_button_sms"></a>
+                    <a class="a2a_button_copy_link"></a>
+                    </div>
+                    <script defer src="https://static.addtoany.com/menu/page.js"></script>
+                    <!-- AddToAny END -->
+                </div>
+
                 <!-- Similar Jobs -->
                 <?php if ($similar_jobs->have_posts()) : ?>
                 <div class="section-card">

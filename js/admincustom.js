@@ -157,7 +157,7 @@ jQuery(document).ready(function($) {
         });
     }
     
-    // Function to download CV
+// Function to download CV
 function downloadCV(applicantId) {
     const card = document.getElementById(`applicant-${applicantId}`);
     if (!card) {
@@ -169,6 +169,10 @@ function downloadCV(applicantId) {
     
     // Add loading state
     card.classList.add('loading');
+    if (downloadBtn) {
+        downloadBtn.disabled = true;
+        downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+    }
     
     // Prepare AJAX data
     const data = {
@@ -188,31 +192,98 @@ function downloadCV(applicantId) {
         success: function(response) {
             console.log('AJAX response:', response);
             
-            if (response.success) {
+            if (response.success && response.data) {
                 // Create a temporary link to download the file
                 const link = document.createElement('a');
                 link.href = response.data.file_url;
                 link.download = response.data.file_name;
+                link.target = '_blank'; // Open in new tab as fallback
+                
+                // For some browsers, it's necessary to add the link to the DOM
                 document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
+                
+                // Clean up
+                setTimeout(function() {
+                    document.body.removeChild(link);
+                }, 100);
                 
                 // Show success message
-                showMessage('CV download started!', 'success');
+                showMessage('CV downloaded successfully!', 'success');
             } else {
-                showMessage('Error: ' + response.data, 'error');
+                // Handle error response
+                const errorMsg = response.data ? response.data : 'Unknown error occurred';
+                showMessage('Error: ' + errorMsg, 'error');
             }
             
             // Remove loading state
             card.classList.remove('loading');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = 'Download CV';
+            }
         },
         error: function(xhr, status, error) {
             console.error('AJAX Error:', error);
             console.log('XHR:', xhr);
-            showMessage('AJAX Error: ' + error, 'error');
+            
+            // Try to get more detailed error message
+            let errorMessage = 'AJAX Error: ' + error;
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.data) {
+                    errorMessage = response.data;
+                }
+            } catch (e) {
+                // If parsing fails, use the default error message
+            }
+            
+            showMessage(errorMessage, 'error');
+            
+            // Remove loading state
             card.classList.remove('loading');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = 'Download CV';
+            }
         }
     });
+}
+
+// Helper function to show messages
+function showMessage(message, type) {
+    // Create message element if it doesn't exist
+    let messageContainer = document.getElementById('message-container');
+    if (!messageContainer) {
+        messageContainer = document.createElement('div');
+        messageContainer.id = 'message-container';
+        messageContainer.style.position = 'fixed';
+        messageContainer.style.top = '20px';
+        messageContainer.style.right = '20px';
+        messageContainer.style.zIndex = '9999';
+        document.body.appendChild(messageContainer);
+    }
+    
+    // Create message
+    const messageElement = document.createElement('div');
+    messageElement.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+    messageElement.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Add message to container
+    messageContainer.appendChild(messageElement);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        messageElement.classList.remove('show');
+        setTimeout(() => {
+            if (messageElement.parentNode) {
+                messageElement.parentNode.removeChild(messageElement);
+            }
+        }, 150);
+    }, 5000);
 }
     
     // Event delegation for button clicks
@@ -324,40 +395,6 @@ window.showCV = function(applicantId) {
 });
 
 
-// jQuery(document).ready(function($) {
-//     // Handle slider change
-//     $('#experience_slider').on('input', function() {
-//         var sliderValue = $(this).val();
-        
-//         // Update the hidden input with the experience years value
-//         $('#experience_years').val(sliderValue);
-        
-//         // Update the display label
-//         $('#experience_display').text(sliderValue + ' years');
-//     });
-    
-//     // Trigger form submission when slider is released
-//     $('#experience_slider').on('change', function() {
-//         // You can submit the form automatically if desired
-//         // $(this).closest('form').submit();
-//     });
-// });
-
-
-
-// document.addEventListener('DOMContentLoaded', function() {
-//     const slider = document.getElementById('experience_slider');
-//     const display = document.getElementById('experience_display');
-//     const hiddenInput = document.getElementById('experience_years');
-    
-//     if (slider && display && hiddenInput) {
-//         slider.addEventListener('input', function() {
-//             const value = this.value;
-//             display.textContent = value + ' years';
-//             hiddenInput.value = value;
-//         });
-//     }
-// });
 
 jQuery(document).ready(function($) {
     // Handle status filter change
@@ -383,3 +420,11 @@ jQuery(document).ready(function($) {
         });
     }
 });
+
+function copyLink(url) {
+    navigator.clipboard.writeText(url).then(function() {
+        alert("Link copied to clipboard!");
+    }, function() {
+        alert("Failed to copy link.");
+    });
+}

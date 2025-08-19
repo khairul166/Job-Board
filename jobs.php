@@ -180,18 +180,18 @@ get_header();
                         // Format job types for data attributes
                         $job_type_data = !empty($job_types) ? implode(' ', $job_types) : '';
                         
-// Format experience level (from metabox)
-$experience_level = get_post_meta(get_the_ID(), '_job_experience_level', true);
+                        // Format experience level (from metabox)
+                        $experience_level = get_post_meta(get_the_ID(), '_job_experience_level', true);
 
-$experience_options = array(
-    'entry' => __('Entry Level', 'job-listing'),
-    'mid' => __('Mid Level', 'job-listing'),
-    'senior' => __('Senior Level', 'job-listing'),
-    'executive' => __('Executive Level', 'job-listing'),
-);
+                        $experience_options = array(
+                            'entry' => __('Entry Level', 'job-listing'),
+                            'mid' => __('Mid Level', 'job-listing'),
+                            'senior' => __('Senior Level', 'job-listing'),
+                            'executive' => __('Executive Level', 'job-listing'),
+                        );
 
-$experience_display = isset($experience_options[$experience_level]) ? $experience_options[$experience_level] : '';
-                        
+                        $experience_display = isset($experience_options[$experience_level]) ? $experience_options[$experience_level] : '';
+                                                
                         // Format industry (from categories)
                         $industry = '';
                         if ($categories) {

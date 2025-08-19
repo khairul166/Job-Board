@@ -990,7 +990,7 @@ function view_job_applications_page() {
                 
                 <div class="filter-actions">
                     <button type="submit" class="button button-primary"><?php _e('Apply Filters', 'text-domain'); ?></button>
-                    <a href="<?php echo esc_url($base_url); ?>" class="button"><?php _e('Reset Filters', 'text-domain'); ?></a>
+                    <a href="<?php echo esc_url($base_url); ?>" class="button" style="text-align: center;"><?php _e('Reset Filters', 'text-domain'); ?></a>
                 </div>
             </form>
         </div>
@@ -1014,7 +1014,7 @@ function view_job_applications_page() {
                         $job_status = 'Expired';
                     }        
                     ?>
-                    <span class="status-value <?php echo $job_status; ?>">
+                    <span class="status-value job-<?php echo $job_status; ?>">
                         <?php echo $job_status; ?>
                     </span>
                 </div>
@@ -1045,27 +1045,37 @@ function view_job_applications_page() {
                     <!-- Facebook -->
                     <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo $current_url; ?>" 
                     class="share-icon facebook" title="Share on Facebook" target="_blank">
-                    <i class="fab fa-facebook-f"></i>
+                        <i class="fab fa-facebook-f"></i>
                     </a>
 
                     <!-- Twitter -->
                     <a href="https://twitter.com/intent/tweet?url=<?php echo $current_url; ?>&text=<?php echo $title; ?>" 
                     class="share-icon twitter" title="Share on Twitter" target="_blank">
-                    <i class="fab fa-twitter"></i>
+                        <i class="fab fa-twitter"></i>
                     </a>
 
                     <!-- LinkedIn -->
                     <a href="https://www.linkedin.com/shareArticle?mini=true&url=<?php echo $current_url; ?>&title=<?php echo $title; ?>" 
                     class="share-icon linkedin" title="Share on LinkedIn" target="_blank">
-                    <i class="fab fa-linkedin-in"></i>
+                        <i class="fab fa-linkedin-in"></i>
                     </a>
 
                     <!-- Email -->
                     <a href="mailto:?subject=<?php echo $title; ?>&body=Check this out: <?php echo $current_url; ?>" 
                     class="share-icon email" title="Share via Email">
-                    <i class="fas fa-envelope"></i>
+                        <i class="fas fa-envelope"></i>
+                    </a>
+
+                    <!-- Copy Link -->
+                    <a href="javascript:void(0);" 
+                    class="share-icon copy" 
+                    title="Copy Link" 
+                    onclick="copyLink('<?php echo get_permalink($job_id); ?>')">
+                        <i class="fas fa-link"></i>
                     </a>
                 </div>
+
+
 
 
                 </div>
@@ -1588,29 +1598,3 @@ function get_education_options() {
     return $education_levels;
 }
 
-function generate_resume_html($user_id) {
-    // Save the current user
-    $original_user_id = get_current_user_id();
-    
-    // Switch to the applicant user
-    wp_set_current_user($user_id);
-    
-    // Start output buffering
-    ob_start();
-    
-    // Load the resume template
-    $template_path = get_template_directory() . '/resume.php';
-    if (file_exists($template_path)) {
-        include($template_path);
-    } else {
-        echo '<p>Resume template not found.</p>';
-    }
-    
-    // Get the buffered content
-    $html = ob_get_clean();
-    
-    // Restore the original user
-    wp_set_current_user($original_user_id);
-    
-    return $html;
-}

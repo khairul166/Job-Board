@@ -57,9 +57,7 @@
     display: inline-block;
 }
 
-.applicant-name:hover {
-    text-decoration: underline;
-}
+
 
 .applicant-details {
     display: flex;
@@ -562,12 +560,12 @@
     font-weight: 500;
 }
 
-.status-value.live {
+.status-value.job-Active {
     background-color: #d4edda;
     color: #155724;
 }
 
-.status-value.ended {
+.status-value.job-Expired {
     background-color: #f8d7da;
     color: #721c24;
 }
@@ -623,11 +621,17 @@
 .share-icon.twitter { background-color: #1da1f2; }
 .share-icon.linkedin { background-color: #0077b5; }
 .share-icon.email { background-color: #6c757d; }
+.share-icon.copy { background-color: #a8a8a8; }
 
 .share-icon:hover {
     opacity: 0.9;
     transform: translateY(-2px);
     color: white;
+}
+
+.share-icon:focus {
+color: white;
+    outline: none;
 }
 
 .filter-group {
