@@ -136,292 +136,167 @@ $completeness_percentage = round(($filled_fields / (count($completeness_fields) 
         </div>
     </div>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h3 class="mb-0">My Job Applications</h3>
-                                    <div class="dropdown">
-                                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <i class="fas fa-filter me-1"></i> Filter
-                                        </button>
-                                        <ul class="dropdown-menu" aria-labelledby="filterDropdown">
-                                            <li><a class="dropdown-item" href="#">All Applications</a></li>
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li><a class="dropdown-item" href="#">Pending</a></li>
-                                            <li><a class="dropdown-item" href="#">Under Review</a></li>
-                                            <li><a class="dropdown-item" href="#">Accepted</a></li>
-                                            <li><a class="dropdown-item" href="#">Rejected</a></li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                <?php
-                                global $wpdb;
-                                $current_user_id = get_current_user_id();
 
-                                // Fetch applications for the logged-in user
-                                $applications = $wpdb->get_results(
-                                    $wpdb->prepare(
-                                        "SELECT a.*, j.post_title AS job_title, j.ID AS job_post_id
-                                        FROM {$wpdb->prefix}job_applications a
-                                        LEFT JOIN {$wpdb->posts} j ON a.job_id = j.ID
-                                        WHERE a.user_id = %d
-                                        ORDER BY a.applied_at DESC",
-                                        $current_user_id
-                                    )
-                                );
-                                // print_r($applications);
-                                if(!empty($applications)) {
-                                    foreach ($applications as $application) {
-
-                                        $job_title = esc_html($application->job_title);
-                                        $job_id = esc_html($application->job_post_id);
-                                        $status = esc_html($application->status);
-                                        $deadline = get_post_meta($job_id, '_job_deadline', true);
-                                        $location = get_post_meta($job_id, '_job_location', true);
-                                        $salary_type = get_post_meta($job_id, '_job_salary_type', true);
-                                        $skills = get_the_terms($job_id, 'job_skill');
-
-                                        if ($status === 'shortlisted') {
-                                            $status_class = 'status-shortlisted';
-                                        } elseif ($status === 'rejected') {
-                                            $status_class = 'status-rejected';
-                                        } else {
-                                            $status_class = 'status-reviewing';
-                                        }
-                                                            // Format salary information
-                                        $salary_html = '';
-                                        if ($salary_type === 'negotiable') {
-                                            $salary_html = __('Negotiable', 'job-listing');
-                                        } elseif ($salary_type === 'fixed') {
-                                            $fixed_salary = get_post_meta($job_id, '_job_fixed_salary', true);
-                                            $fixed_salary_period = get_post_meta($job_id, '_job_fixed_salary_period', true);
-                                            $salary_html = esc_html($fixed_salary) . '/' . esc_html($fixed_salary_period);
-                                        } elseif ($salary_type === 'range') {
-                                            $min_salary = get_post_meta($job_id, '_job_min_salary', true);
-                                            $max_salary = get_post_meta($job_id, '_job_max_salary', true);
-                                            $salary_range_period = get_post_meta($job_id, '_job_salary_range_period', true);
-                                            $salary_html = esc_html($min_salary) . ' - ' . esc_html($max_salary) . '/' . esc_html($salary_range_period);
-                                        }
-                                        $applied_at = strtotime($application->applied_at); // convert DB datetime → timestamp
-                                        $current_time = current_time('timestamp');        // WP current timestamp
-                                        $time_diff = human_time_diff($applied_at, $current_time);
-
-
-                                        ?>
-                                        <!-- Application Cards -->
-                                        <div class="card job-card">
-                                            <div class="card-body">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <h4><a href="<?php the_permalink($job_id); ?>"><?php echo $job_title; ?></a></h4>
-                                                        <p class="text-muted">
-                                                            <i class="fas fa-calendar-week me-2 text-muted"></i><?php echo date_i18n('d F, Y', strtotime($deadline)); ?>
-                                                            <span class="mx-2">|</span>
-                                                            <i class="fas fa-map-marker-alt me-1"></i> <?php echo esc_html($location); ?>
-                                                            <span class="mx-2">|</span>
-                                                            <i class="fa-solid fa-bangladeshi-taka-sign"></i> <?php echo $salary_html; ?>
-                                                            <span class="mx-2">|</span>
-                                                            <i class="fas fa-clock me-1"></i><?php echo "Applied: " . esc_html($time_diff) . " ago"; ?>
-                                                        </p>
-                                                    </div>
-                                                    <div class="col-md-4 text-md-end">
-                                                        <span class="status-badge <?php echo $status_class; ?>"><?php echo $status; ?></span>
-                                                    </div>
-                                                </div>
-                                                <div class="row mt-3">
-                                                    <div class="col-md-8">
-                                                        <p><?php 
-                                                        $job_content = get_post_field('post_content', $job_id);
-                                                        echo wp_trim_words($job_content, 30, '...');?></p>
-                                                        <div class="d-flex flex-wrap">
-                                                            <?php if ($skills && !is_wp_error($skills)) : ?>
-                                                                <?php foreach ($skills as $skill) : ?>
-                                                                    <span class="badge bg-light text-dark me-2 mb-2"><?php echo esc_html($skill->name); ?></span>
-                                                                <?php endforeach;
-                                                                endif; ?>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-4 text-md-end mt-md-0 mt-3">
-                                                        <a href="<?php echo get_permalink($job_id); ?>" class="btn btn-outline-primary">View Job</a>
-                                                        <button class="btn btn-link text-danger">Withdraw</button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                    <?php
-                                    }
-                                } ?>
-                                <!-- Application Cards -->
-                                <!-- <div class="card job-card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-8">
-                                                <h4>Senior Frontend Developer</h4>
-                                                <p class="text-muted">
-                                                    <i class="fas fa-building me-1"></i> TechGiant Inc.
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-map-marker-alt me-1"></i> San Francisco, CA (Remote)
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-clock me-1"></i> Applied: 2 days ago
-                                                </p>
-                                            </div>
-                                            <div class="col-md-4 text-md-end">
-                                                <span class="status-badge status-reviewing">Under Review</span>
-                                            </div>
-                                        </div>
-                                        <div class="row mt-3">
-                                            <div class="col-md-8">
-                                                <p>We are looking for an experienced Frontend Developer to join our team. You will be responsible for building user interfaces using React and TypeScript.</p>
-                                                <div class="d-flex flex-wrap">
-                                                    <span class="badge bg-light text-dark me-2 mb-2">React</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">TypeScript</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Redux</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Jest</span>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4 text-md-end mt-md-0 mt-3">
-                                                <a href="#" class="btn btn-outline-primary">View Job</a>
-                                                <button class="btn btn-link text-danger">Withdraw</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="card job-card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-8">
-                                                <h4>Full Stack Developer</h4>
-                                                <p class="text-muted">
-                                                    <i class="fas fa-building me-1"></i> WebSolutions LLC
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-map-marker-alt me-1"></i> New York, NY (Hybrid)
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-clock me-1"></i> Applied: 1 week ago
-                                                </p>
-                                            </div>
-                                            <div class="col-md-4 text-md-end">
-                                                <span class="status-badge status-pending">Pending</span>
-                                            </div>
-                                        </div>
-                                        <div class="row mt-3">
-                                            <div class="col-md-8">
-                                                <p>Join our dynamic team working on cutting-edge web applications. We're looking for someone proficient in both frontend and backend technologies.</p>
-                                                <div class="d-flex flex-wrap">
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Node.js</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">React</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">MongoDB</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">AWS</span>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4 text-md-end mt-md-0 mt-3">
-                                                <a href="#" class="btn btn-outline-primary">View Job</a>
-                                                <button class="btn btn-link text-danger">Withdraw</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="card job-card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-8">
-                                                <h4>Backend Engineer</h4>
-                                                <p class="text-muted">
-                                                    <i class="fas fa-building me-1"></i> DataSystems Corp.
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-map-marker-alt me-1"></i> Austin, TX (On-site)
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-clock me-1"></i> Applied: 1 month ago
-                                                </p>
-                                            </div>
-                                            <div class="col-md-4 text-md-end">
-                                                <span class="status-badge status-accepted">Accepted</span>
-                                            </div>
-                                        </div>
-                                        <div class="row mt-3">
-                                            <div class="col-md-8">
-                                                <p>We're looking for a skilled Backend Engineer to develop and maintain our high-performance server infrastructure and APIs.</p>
-                                                <div class="d-flex flex-wrap">
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Python</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Django</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">PostgreSQL</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Docker</span>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4 text-md-end mt-md-0 mt-3">
-                                                <a href="#" class="btn btn-success">Accept Offer</a>
-                                                <button class="btn btn-link text-danger">Decline</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="card job-card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-8">
-                                                <h4>Product Manager</h4>
-                                                <p class="text-muted">
-                                                    <i class="fas fa-building me-1"></i> InnovateTech
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-map-marker-alt me-1"></i> Boston, MA (Remote)
-                                                    <span class="mx-2">|</span>
-                                                    <i class="fas fa-clock me-1"></i> Applied: 3 weeks ago
-                                                </p>
-                                            </div>
-                                            <div class="col-md-4 text-md-end">
-                                                <span class="status-badge status-rejected">Rejected</span>
-                                            </div>
-                                        </div>
-                                        <div class="row mt-3">
-                                            <div class="col-md-8">
-                                                <p>Looking for an experienced Product Manager to lead our product development team and drive product strategy.</p>
-                                                <div class="d-flex flex-wrap">
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Product Management</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Agile</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">UX</span>
-                                                    <span class="badge bg-light text-dark me-2 mb-2">Market Research</span>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4 text-md-end mt-md-0 mt-3">
-                                                <a href="#" class="btn btn-outline-primary">View Job</a>
-                                                <button class="btn btn-link">Request Feedback</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div> -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">My Job Applications</h3>
+        <?php 
+        global $wpdb;
+        $current_user_id = get_current_user_id();
+        // Fetch applications for the logged-in user
+        $applications = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT a.*, j.post_title AS job_title, j.ID AS job_post_id
+                FROM {$wpdb->prefix}job_applications a
+                LEFT JOIN {$wpdb->posts} j ON a.job_id = j.ID
+                WHERE a.user_id = %d
+                ORDER BY a.applied_at DESC",
+                $current_user_id
+            )
+        );
+        
+        if(!empty($applications)) {
+        ?>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-filter me-1"></i> Filter
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+                    <li><a class="dropdown-item active" href="#" data-filter="all">All Applications</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" data-filter="shortlisted">Shortlisted</a></li>
+                    <li><a class="dropdown-item" href="#" data-filter="under_review">Under Review</a></li>
+                    <li><a class="dropdown-item" href="#" data-filter="accepted">Accepted</a></li>
+                    <li><a class="dropdown-item" href="#" data-filter="rejected">Rejected</a></li>
+                </ul>
+            </div>
         </div>
-
+        
+        <div class="job-applications-container">
+            <?php 
+            foreach ($applications as $application) {
+                $job_title = esc_html($application->job_title);
+                $job_id = esc_html($application->job_post_id);
+                $status = esc_html($application->status);
+                $deadline = get_post_meta($job_id, '_job_deadline', true);
+                $location = get_post_meta($job_id, '_job_location', true);
+                $salary_type = get_post_meta($job_id, '_job_salary_type', true);
+                $skills = get_the_terms($job_id, 'job_skill');
+                
+                // Set status class and normalize status for filtering
+                $status_normalized = '';
+                if ($status === 'shortlisted') {
+                    $status_class = 'status-shortlisted';
+                    $status_normalized = 'shortlisted';
+                } elseif ($status === 'rejected') {
+                    $status_class = 'status-rejected';
+                    $status_normalized = 'rejected';
+                } elseif ($status === 'accepted') {
+                    $status_class = 'status-accepted';
+                    $status_normalized = 'accepted';
+                } else {
+                    $status_class = 'status-pending';
+                    $status_normalized = 'under_review';
+                }
+                
+                // Format salary information
+                $salary_html = '';
+                if ($salary_type === 'negotiable') {
+                    $salary_html = __('Negotiable', 'job-listing');
+                } elseif ($salary_type === 'fixed') {
+                    $fixed_salary = get_post_meta($job_id, '_job_fixed_salary', true);
+                    $fixed_salary_period = get_post_meta($job_id, '_job_fixed_salary_period', true);
+                    $salary_html = esc_html($fixed_salary) . '/' . esc_html($fixed_salary_period);
+                } elseif ($salary_type === 'range') {
+                    $min_salary = get_post_meta($job_id, '_job_min_salary', true);
+                    $max_salary = get_post_meta($job_id, '_job_max_salary', true);
+                    $salary_range_period = get_post_meta($job_id, '_job_salary_range_period', true);
+                    $salary_html = esc_html($min_salary) . ' - ' . esc_html($max_salary) . '/' . esc_html($salary_range_period);
+                }
+                
+                $applied_at = strtotime($application->applied_at);
+                $current_time = current_time('timestamp');
+                $time_diff = human_time_diff($applied_at, $current_time);
+            ?>
+                <!-- Application Cards -->
+                <div class="card job-card" data-status="<?php echo $status_normalized; ?>">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h4><a href="<?php the_permalink($job_id); ?>" class="text-success"><?php echo $job_title; ?></a></h4>
+                                <p class="text-muted">
+                                    <i class="fas fa-calendar-week me-2 text-muted"></i><?php echo date_i18n('d F, Y', strtotime($deadline)); ?>
+                                    <span class="mx-2">|</span>
+                                    <i class="fas fa-map-marker-alt me-1"></i> <?php echo esc_html($location); ?>
+                                    <span class="mx-2">|</span>
+                                    <i class="fa-solid fa-bangladeshi-taka-sign"></i> <?php echo $salary_html; ?>
+                                    <span class="mx-2">|</span>
+                                    <i class="fas fa-clock me-1"></i><?php echo "Applied: " . esc_html($time_diff) . " ago"; ?>
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <span class="status-badge <?php echo $status_class; ?>"><?php echo $status; ?></span>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-8">
+                                <p><?php 
+                                $job_content = get_post_field('post_content', $job_id);
+                                echo wp_trim_words($job_content, 30, '...');?></p>
+                                <div class="d-flex flex-wrap">
+                                    <?php if ($skills && !is_wp_error($skills)) : ?>
+                                        <?php foreach ($skills as $skill) : ?>
+                                            <span class="badge bg-light text-dark me-2 mb-2"><?php echo esc_html($skill->name); ?></span>
+                                        <?php endforeach;
+                                        endif; ?>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-md-end mt-md-0 mt-3">
+                                <a href="<?php echo get_permalink($job_id); ?>" target="_blank" class="btn btn-outline-success">View Job</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php
+            }
+            ?>
+        </div>
+        <?php
+        }
+        ?>
+    </div>
         
 <!-- Resume Upload Modal -->
 <div class="modal fade" id="resumeUploadModal" tabindex="-1" aria-labelledby="resumeUploadModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title" id="resumeUploadModalLabel">Upload Your Resume</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-
-      <form id="resumeUploadForm" enctype="multipart/form-data">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="resumeFile" class="form-label fw-bold">Select Resume File <span class="text-danger">*</span></label>
-            <input type="file" class="form-control" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" required>
-            <div class="form-text">Accepted formats: PDF, DOC, DOCX. Max size: 5MB.</div>
-          </div>
-
-          <div id="resumeUploadMessage" class="text-success d-none">
-            ✅ Resume uploaded successfully!
-          </div>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resumeUploadModalLabel">Upload Your Resume</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="resumeUploadForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div id="resume-upload-section" class="mb-3">
+                        <label for="resumeFile" class="form-label fw-bold">Select Resume File <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" required>
+                        <div class="form-text">Accepted formats: PDF, DOC, DOCX. Max size: 5MB.</div>
+                    </div>
+                    <div id="resumeUploadMessage" class="d-none text-center py-4">
+                        <div class="success-animation mx-auto mb-3">
+                            <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                                <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none" />
+                                <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                            </svg>
+                        </div>
+                        <h4 class="alert-heading mb-3">Resume Uploaded Successfully!</h4>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Resume</button>
+                </div>
+            </form>
         </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Upload Resume</button>
-        </div>
-      </form>
     </div>
-  </div>
 </div>
 
 <!-- Profile Picture Upload Modal -->

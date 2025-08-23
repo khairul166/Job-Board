@@ -80,7 +80,7 @@ function sendAjaxRequest(action, method, data, successCallback, errorCallback) {
 function sendFileUploadRequest(action, formData, successCallback, errorCallback, nonce) {
     // Use the globally available ajaxurl from ajax_common_vars
     const ajaxUrl = ajax_common_vars?.ajaxurl || '<?php echo admin_url("admin-ajax.php"); ?>';
-
+    
     const xhr = new XMLHttpRequest();
     xhr.open('POST', ajaxUrl, true); // Use the resolved URL
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -148,151 +148,94 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // About Me AJAX
+    document.getElementById('aboutMeForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const aboutText = document.getElementById('aboutMeTextarea').value;
 
-    // Get the form element first
-    const aboutMeForm = document.getElementById('aboutMeForm');
-
-    // Only attach event listener if form exists
-    if (aboutMeForm) {
-        aboutMeForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const aboutMeTextarea = document.getElementById('aboutMeTextarea');
-
-            if (!aboutMeTextarea) {
-                console.error('About Me textarea not found');
-                return;
+        sendAjaxRequest(
+            'update_about_me',
+            'POST',
+            { about: aboutText },
+            function (response) {
+                document.querySelector('.profile-section p').innerText = aboutText;
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editAboutModal'));
+                modal.hide();
+                showSuccessMessage('About Me updated successfully!');
+            },
+            function (error) {
+                alert('Error updating About Me: ' + error);
             }
-
-            const aboutText = aboutMeTextarea.value;
-
-            sendAjaxRequest(
-                'update_about_me',
-                'POST',
-                { about: aboutText },
-                function (response) {
-                    const profileSection = document.querySelector('.profile-section p');
-                    if (profileSection) {
-                        profileSection.innerText = aboutText;
-                    }
-
-                    const editAboutModal = document.getElementById('editAboutModal');
-                    if (editAboutModal) {
-                        const modal = bootstrap.Modal.getInstance(editAboutModal);
-                        if (modal) modal.hide();
-                    }
-
-                    showSuccessMessage('About Me updated successfully!');
-                },
-                function (error) {
-                    alert('Error updating About Me: ' + error);
-                }
-            );
-        });
-    } else {
-        // console.error('About Me form not found');
-    }
-
+        );
+    });
 
     // Personal Information AJAX
     let contactNumberInstance, altContactInstance;
 
     // Initialize intlTelInput when modal is shown
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the modal element first
-        const editPersonalInfoModal = document.getElementById('editPersonalInfoModal');
+    document.getElementById('editPersonalInfoModal').addEventListener('show.bs.modal', function () {
+        setTimeout(function () {
+            // Initialize Contact Number input
+            const contactNumberInput = document.getElementById('contactNumber');
+            if (contactNumberInput && !contactNumberInstance) {
+                contactNumberInstance = window.intlTelInput(contactNumberInput, {
+                    initialCountry: "bd",
+                    utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+                    separateDialCode: true,
+                    formatOnDisplay: true,
+                    nationalMode: false
+                });
+            }
 
-        // Only attach event listener if modal exists
-        if (editPersonalInfoModal) {
-            editPersonalInfoModal.addEventListener('show.bs.modal', function () {
-                setTimeout(function () {
-                    // Initialize Contact Number input
-                    const contactNumberInput = document.getElementById('contactNumber');
-                    if (contactNumberInput && !contactNumberInstance) {
-                        contactNumberInstance = window.intlTelInput(contactNumberInput, {
-                            initialCountry: "bd",
-                            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
-                            separateDialCode: true,
-                            formatOnDisplay: true,
-                            nationalMode: false
-                        });
-                    }
-
-                    // Initialize Alternative Contact Number input
-                    const altContactInput = document.getElementById('altContact');
-                    if (altContactInput && !altContactInstance) {
-                        altContactInstance = window.intlTelInput(altContactInput, {
-                            initialCountry: "bd",
-                            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
-                            separateDialCode: true,
-                            formatOnDisplay: true,
-                            nationalMode: false
-                        });
-                    }
-                }, 100);
-            });
-        } else {
-            // console.error('Edit Personal Info Modal not found');
-        }
+            // Initialize Alternative Contact Number input
+            const altContactInput = document.getElementById('altContact');
+            if (altContactInput && !altContactInstance) {
+                altContactInstance = window.intlTelInput(altContactInput, {
+                    initialCountry: "bd",
+                    utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+                    separateDialCode: true,
+                    formatOnDisplay: true,
+                    nationalMode: false
+                });
+            }
+        }, 100);
     });
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Function to handle form submission
-        function handlePersonalInfoSubmit(e) {
-            e.preventDefault();
-            const form = e.target;
+    document.getElementById('personalInfoForm').addEventListener('submit', function (e) {
+        e.preventDefault();
 
-            // Get all form data
-            const formData = {
-                fullName: form.fullName.value,
-                fatherName: form.fatherName.value,
-                motherName: form.motherName.value,
-                dob: form.dob.value,
-                gender: form.gender.value,
-                bloodGroup: form.bloodGroup.value,
-                nationality: form.nationality.value,
-                birthCountry: form.birthCountry.value,
-                contactNumber: contactNumberInstance ? contactNumberInstance.getNumber() : '',
-                altContact: altContactInstance ? altContactInstance.getNumber() : '',
-                email: form.email.value,
-                presentAddress: form.presentAddress.value,
-                permanentAddress: form.permanentAddress.value,
-                presentcity: form.presentcity.value,
-                placeofbirth: form.placeofbirth.value,
-            };
+        // Get all form data
+        const formData = {
+            fullName: this.fullName.value,
+            fatherName: this.fatherName.value,
+            motherName: this.motherName.value,
+            dob: this.dob.value,
+            gender: this.gender.value,
+            bloodGroup: this.bloodGroup.value,
+            nationality: this.nationality.value,
+            birthCountry: this.birthCountry.value,
+            contactNumber: contactNumberInstance ? contactNumberInstance.getNumber() : '',
+            altContact: altContactInstance ? altContactInstance.getNumber() : '',
+            email: this.email.value,
+            presentAddress: this.presentAddress.value,
+            permanentAddress: this.permanentAddress.value,
+            presentcity: this.presentcity.value,
+            placeofbirth: this.placeofbirth.value,
+        };
 
-            sendAjaxRequest(
-                'update_personal_info',
-                'POST',
-                formData,
-                function (response) {
-                    updatePersonalInfoDisplay(formData);
-                    const modalElement = document.getElementById('editPersonalInfoModal');
-                    if (modalElement) {
-                        const modal = bootstrap.Modal.getInstance(modalElement);
-                        if (modal) modal.hide();
-                    }
-                    showSuccessMessage('Personal information updated successfully!');
-                },
-                function (error) {
-                    alert('Error updating personal information: ' + error);
-                }
-            );
-        }
-
-        // Try to attach directly to the form if it exists
-        const personalInfoForm = document.getElementById('personalInfoForm');
-        if (personalInfoForm) {
-            personalInfoForm.addEventListener('submit', handlePersonalInfoSubmit);
-        } else {
-            console.error('Personal Info Form not found');
-
-            // Use event delegation as a fallback for dynamically loaded forms
-            document.addEventListener('submit', function (e) {
-                if (e.target && e.target.id === 'personalInfoForm') {
-                    handlePersonalInfoSubmit(e);
-                }
-            });
-        }
+        sendAjaxRequest(
+            'update_personal_info',
+            'POST',
+            formData,
+            function (response) {
+                updatePersonalInfoDisplay(formData);
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editPersonalInfoModal'));
+                modal.hide();
+                showSuccessMessage('Personal information updated successfully!');
+            },
+            function (error) {
+                alert('Error updating personal information: ' + error);
+            }
+        );
     });
 
     // Function to update the personal information display
@@ -370,71 +313,36 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ============ Education AJAX Start ============//
     // Education AJAX
-    document.addEventListener('DOMContentLoaded', function () {
-        const educationForm = document.getElementById('educationForm');
-
-        // Only proceed if the form exists
-        if (educationForm) {
-            const hiddenIdInput = document.createElement('input');
-            hiddenIdInput.type = 'hidden';
-            hiddenIdInput.id = 'educationId';
-            hiddenIdInput.name = 'educationId';
-            educationForm.appendChild(hiddenIdInput);
-        } else {
-            console.error('Education form not found');
-        }
-    });
+    const educationForm = document.getElementById('educationForm');
+    const hiddenIdInput = document.createElement('input');
+    hiddenIdInput.type = 'hidden';
+    hiddenIdInput.id = 'educationId';
+    hiddenIdInput.name = 'educationId';
+    educationForm.appendChild(hiddenIdInput);
 
     // Generate year options
     const yearSelect = document.querySelector('select[name="passing_year[]"]');
     const currentYear = new Date().getFullYear();
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the year select element
-        const yearSelect = document.getElementById('yearSelect');
-
-        // Only proceed if the select element exists
-        if (yearSelect) {
-            // Get current year
-            const currentYear = new Date().getFullYear();
-
-            // Generate options from current year back 20 years
-            for (let year = currentYear; year >= currentYear - 20; year--) {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year;
-                yearSelect.appendChild(option);
-            }
-        } else {
-            console.error('Year select element not found');
-        }
-    });
+    // Generate options from current year back 20 years
+    for (let year = currentYear; year >= currentYear - 20; year--) {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearSelect.appendChild(option);
+    }
 
     // Handle GPA input visibility
     const resultSelect = document.getElementById('resultSelect');
     const gpaPointsInput = document.getElementById('gpaPoints');
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the result select element
-        const resultSelect = document.getElementById('resultSelect');
-        const gpaPointsInput = document.getElementById('gpaPointsInput');
-
-        // Only attach event listener if elements exist
-        if (resultSelect && gpaPointsInput) {
-            resultSelect.addEventListener('change', function () {
-                if (this.value === 'gpa4' || this.value === 'gpa5') {
-                    gpaPointsInput.classList.remove('d-none');
-                    gpaPointsInput.required = true;
-                } else {
-                    gpaPointsInput.classList.add('d-none');
-                    gpaPointsInput.required = false;
-                }
-            });
+    resultSelect.addEventListener('change', function () {
+        if (this.value === 'gpa4' || this.value === 'gpa5') {
+            gpaPointsInput.classList.remove('d-none');
+            gpaPointsInput.required = true;
         } else {
-            console.error('Required elements not found:', {
-                resultSelect: !!resultSelect,
-                gpaPointsInput: !!gpaPointsInput
-            });
+            gpaPointsInput.classList.add('d-none');
+            gpaPointsInput.required = false;
         }
     });
 
@@ -742,21 +650,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // Training AJAX
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the training form element
-        const trainingForm = document.getElementById('trainingForm');
-
-        // Only proceed if the form exists
-        if (trainingForm) {
-            const trainingHiddenIdInput = document.createElement('input');
-            trainingHiddenIdInput.type = 'hidden';
-            trainingHiddenIdInput.id = 'trainingId';
-            trainingHiddenIdInput.name = 'trainingId';
-            trainingForm.appendChild(trainingHiddenIdInput);
-        } else {
-            console.error('Training form not found');
-        }
-    });
+    const trainingForm = document.getElementById('trainingForm');
+    const trainingHiddenIdInput = document.createElement('input');
+    trainingHiddenIdInput.type = 'hidden';
+    trainingHiddenIdInput.id = 'trainingId';
+    trainingHiddenIdInput.name = 'trainingId';
+    trainingForm.appendChild(trainingHiddenIdInput);
 
     // Add class to existing training entries (don't change IDs)
     const existingTraining = document.querySelectorAll('.training-section .mb-4.border-bottom');
@@ -1067,272 +966,185 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Skills AJAX
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the save skills button
-        const saveSkillsBtn = document.getElementById('saveSkills');
+// Add multiple skills
+document.getElementById('saveSkills').addEventListener('click', function () {
+    const input = document.getElementById('skillsInput').value;
+    if (!input.trim()) return;
 
-        // Only attach event listener if button exists
-        if (saveSkillsBtn) {
-            saveSkillsBtn.addEventListener('click', function () {
-                const skillsInput = document.getElementById('skillsInput');
-                if (!skillsInput) {
-                    console.error('Skills input not found');
-                    return;
-                }
+    // Split by comma, trim, filter empty
+    const newSkills = input.split(',').map(s => s.trim()).filter(s => s);
 
-                const input = skillsInput.value;
-                if (!input.trim()) return;
+    if (newSkills.length === 0) return;
 
-                // Split by comma, trim, filter empty
-                const newSkills = input.split(',').map(s => s.trim()).filter(s => s);
-                if (newSkills.length === 0) return;
-
-                sendAjaxRequest(
-                    'add_skills',
-                    'POST',
-                    { skills: newSkills },
-                    function (response) {
-                        // Append each new skill to DOM
-                        const skillSection = document.querySelector('.skill-section');
-                        if (!skillSection) {
-                            console.error('Skill section not found');
-                            return;
-                        }
-
-                        newSkills.forEach(skill => {
-                            const span = document.createElement('span');
-                            span.className = 'skill-badge rounded-pill';
-                            span.innerHTML = `${skill}
-                            <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-skill-btn" data-skill="${skill}" title="Remove">
-                                <i class="fas fa-times"></i>
-                            </button>`;
-                            skillSection.appendChild(span);
-                        });
-
-                        // Clear input and close modal
-                        if (skillsInput) skillsInput.value = '';
-
-                        const addSkillsModal = document.getElementById('addSkillsModal');
-                        if (addSkillsModal) {
-                            const modal = bootstrap.Modal.getInstance(addSkillsModal);
-                            if (modal) modal.hide();
-                        }
-
-                        showSuccessMessage('Skills added successfully!');
-                    },
-                    function (error) {
-                        alert('Error adding skills: ' + error);
-                    }
-                );
+    sendAjaxRequest(
+        'add_skills',
+        'POST',
+        { skills: newSkills },
+        function (response) {
+            // Append each new skill to DOM
+            const skillSection = document.querySelector('.skill-section');
+            newSkills.forEach(skill => {
+                const span = document.createElement('span');
+                span.className = 'skill-badge rounded-pill';
+                span.innerHTML = `${skill}
+                    <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-skill-btn" data-skill="${skill}" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>`;
+                skillSection.appendChild(span);
             });
-        } else {
-            console.error('Save skills button not found');
+            document.getElementById('skillsInput').value = '';
+            bootstrap.Modal.getInstance(document.getElementById('addSkillsModal')).hide();
+            showSuccessMessage('Skills added successfully!');
+        },
+        function (error) {
+            alert('Error adding skills: ' + error);
         }
-    });
+    );
+});
 
-    // Remove skill
-    document.addEventListener('click', function (e) {
-        if (e.target.closest('.remove-skill-btn')) {
-            const btn = e.target.closest('.remove-skill-btn');
-            const skill = btn.getAttribute('data-skill');
-            sendAjaxRequest(
-                'remove_skill',
-                'POST',
-                { skill: skill },
-                function (response) {
-                    btn.parentElement.remove(); // Remove badge from DOM
-                    showSuccessMessage('Skill removed successfully!');
-                },
-                function (error) {
-                    alert('Error removing skill: ' + error);
-                }
-            );
-        }
-    });
+// Remove skill
+document.addEventListener('click', function (e) {
+    if (e.target.closest('.remove-skill-btn')) {
+        const btn = e.target.closest('.remove-skill-btn');
+        const skill = btn.getAttribute('data-skill');
+        sendAjaxRequest(
+            'remove_skill',
+            'POST',
+            { skill: skill },
+            function (response) {
+                btn.parentElement.remove(); // Remove badge from DOM
+                showSuccessMessage('Skill removed successfully!');
+            },
+            function (error) {
+                alert('Error removing skill: ' + error);
+            }
+        );
+    }
+});
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the save language button
-        const saveLanguageBtn = document.getElementById('saveLangguage');
+// Add multiple languages
+document.getElementById('saveLangguage').addEventListener('click', function () {
+    const input = document.getElementById('langguageInput').value;
+    if (!input.trim()) return;
 
-        // Only attach event listener if button exists
-        if (saveLanguageBtn) {
-            saveLanguageBtn.addEventListener('click', function () {
-                const languageInput = document.getElementById('langguageInput');
-                if (!languageInput) {
-                    console.error('Language input not found');
-                    return;
-                }
+    // Split by comma, trim, filter empty
+    const newLanguages = input.split(',').map(s => s.trim()).filter(s => s);
 
-                const input = languageInput.value;
-                if (!input.trim()) return;
+    if (newLanguages.length === 0) return;
 
-                // Split by comma, trim, filter empty
-                const newLanguages = input.split(',').map(s => s.trim()).filter(s => s);
-                if (newLanguages.length === 0) return;
-
-                sendAjaxRequest(
-                    'add_languages',
-                    'POST',
-                    { languages: newLanguages },
-                    function (response) {
-                        // Append each new language to DOM
-                        const langSection = document.querySelector('.langguage-section');
-                        if (!langSection) {
-                            console.error('Language section not found');
-                            return;
-                        }
-
-                        newLanguages.forEach(language => {
-                            const span = document.createElement('span');
-                            span.className = 'langguage-badge rounded-pill';
-                            span.innerHTML = `${language}
-                            <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-language-btn" data-language="${language}" title="Remove">
-                                <i class="fas fa-times"></i>
-                            </button>`;
-                            langSection.appendChild(span);
-                        });
-
-                        // Clear input and close modal
-                        if (languageInput) languageInput.value = '';
-
-                        const addLanguageModal = document.getElementById('addlangguageModal');
-                        if (addLanguageModal) {
-                            const modal = bootstrap.Modal.getInstance(addLanguageModal);
-                            if (modal) modal.hide();
-                        }
-
-                        showSuccessMessage('Languages added successfully!');
-                    },
-                    function (error) {
-                        alert('Error adding languages: ' + error);
-                    }
-                );
+    sendAjaxRequest(
+        'add_languages',
+        'POST',
+        { languages: newLanguages },
+        function (response) {
+            // Append each new language to DOM
+            const langSection = document.querySelector('.langguage-section');
+            newLanguages.forEach(language => {
+                const span = document.createElement('span');
+                span.className = 'langguage-badge rounded-pill';
+                span.innerHTML = `${language}
+                    <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-language-btn" data-language="${language}" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>`;
+                langSection.appendChild(span);
             });
-        } else {
-            console.error('Save language button not found');
+            document.getElementById('langguageInput').value = '';
+            bootstrap.Modal.getInstance(document.getElementById('addlangguageModal')).hide();
+            showSuccessMessage('Languages added successfully!');
+        },
+        function (error) {
+            alert('Error adding languages: ' + error);
         }
-    });
+    );
+});
 
-    // Remove language
-    document.addEventListener('click', function (e) {
-        if (e.target.closest('.remove-language-btn')) {
-            const btn = e.target.closest('.remove-language-btn');
-            const language = btn.getAttribute('data-language');
-            sendAjaxRequest(
-                'remove_language',
-                'POST',
-                { language: language },
-                function (response) {
-                    btn.parentElement.remove(); // Remove badge from DOM
-                    showSuccessMessage('Language removed successfully!');
-                },
-                function (error) {
-                    alert('Error removing language: ' + error);
-                }
-            );
-        }
-    });
+// Remove language
+document.addEventListener('click', function (e) {
+    if (e.target.closest('.remove-language-btn')) {
+        const btn = e.target.closest('.remove-language-btn');
+        const language = btn.getAttribute('data-language');
+        sendAjaxRequest(
+            'remove_language',
+            'POST',
+            { language: language },
+            function (response) {
+                btn.parentElement.remove(); // Remove badge from DOM
+                showSuccessMessage('Language removed successfully!');
+            },
+            function (error) {
+                alert('Error removing language: ' + error);
+            }
+        );
+    }
+});
     // References AJAX
-    // Get the reference form element
     const referenceForm = document.getElementById('referenceForm');
-
-    // Only proceed if the form exists
-    if (referenceForm) {
-        const referenceHiddenIdInput = document.createElement('input');
-        referenceHiddenIdInput.type = 'hidden';
-        referenceHiddenIdInput.id = 'referenceId';
-        referenceHiddenIdInput.name = 'referenceId';
-        referenceForm.appendChild(referenceHiddenIdInput);
-    }
+    const referenceHiddenIdInput = document.createElement('input');
+    referenceHiddenIdInput.type = 'hidden';
+    referenceHiddenIdInput.id = 'referenceId';
+    referenceHiddenIdInput.name = 'referenceId';
+    referenceForm.appendChild(referenceHiddenIdInput);
 
 
-    // Get the save reference button
-    const saveReferenceBtn = document.getElementById('saveReference');
+    // Handle save button click
+    document.getElementById('saveReference').addEventListener('click', function () {
+        const referenceId = document.getElementById('referenceId').value;
+        const name = document.getElementById('referenceName').value.trim();
+        const position = document.getElementById('referencePosition').value.trim();
+        const company = document.getElementById('referenceCompany').value.trim();
+        const email = document.getElementById('referenceEmail').value.trim();
+        const phone = document.getElementById('referencePhone').value.trim();
 
-    // Only attach event listener if button exists
-    if (saveReferenceBtn) {
-        saveReferenceBtn.addEventListener('click', function () {
-            // Get all form elements
-            const referenceId = document.getElementById('referenceId');
-            const referenceName = document.getElementById('referenceName');
-            const referencePosition = document.getElementById('referencePosition');
-            const referenceCompany = document.getElementById('referenceCompany');
-            const referenceEmail = document.getElementById('referenceEmail');
-            const referencePhone = document.getElementById('referencePhone');
-            const referenceForm = document.getElementById('referenceForm');
+        // Validate required fields
+        if (!name || !position || !company || !email) {
+            alert('Please fill in all required fields.');
+            return;
+        }
 
-            // Check if required elements exist
-            if (!referenceName || !referencePosition || !referenceCompany || !referenceEmail) {
-                console.error('Required form elements not found');
-                return;
-            }
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            alert('Please enter a valid email address.');
+            return;
+        }
 
-            // Get values
-            const id = referenceId ? referenceId.value : '';
-            const name = referenceName.value.trim();
-            const position = referencePosition.value.trim();
-            const company = referenceCompany.value.trim();
-            const email = referenceEmail.value.trim();
-            const phone = referencePhone ? referencePhone.value.trim() : '';
+        const formData = {
+            referenceId: referenceId,
+            name: name,
+            position: position,
+            company: company,
+            email: email,
+            phone: phone
+        };
 
-            // Validate required fields
-            if (!name || !position || !company || !email) {
-                alert('Please fill in all required fields.');
-                return;
-            }
-
-            // Email validation
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                alert('Please enter a valid email address.');
-                return;
-            }
-
-            const formData = {
-                referenceId: id,
-                name: name,
-                position: position,
-                company: company,
-                email: email,
-                phone: phone
-            };
-
-            sendAjaxRequest(
-                'update_references',
-                'POST',
-                formData,
-                function (response) {
-                    if (id) {
-                        // Editing existing reference
-                        const referenceEntry = document.querySelector(`.reference-entry[data-id="${id}"]`);
-                        if (referenceEntry) {
-                            updateReferenceEntry(referenceEntry, name, position, company, email, phone);
-                        }
-                    } else {
-                        // Adding new reference
-                        addReferenceEntry(name, position, company, email, phone);
+        sendAjaxRequest(
+            'update_references',
+            'POST',
+            formData,
+            function (response) {
+                if (referenceId) {
+                    // Editing existing reference
+                    const referenceEntry = document.querySelector(`.reference-entry[data-id="${referenceId}"]`);
+                    if (referenceEntry) {
+                        updateReferenceEntry(referenceEntry, name, position, company, email, phone);
                     }
-
-                    // Reset form and close modal
-                    if (referenceForm) {
-                        referenceForm.reset();
-                        if (referenceId) referenceId.value = '';
-                    }
-
-                    const referenceModal = document.getElementById('referenceModal');
-                    if (referenceModal) {
-                        const modal = bootstrap.Modal.getInstance(referenceModal);
-                        if (modal) modal.hide();
-                    }
-
-                    showSuccessMessage('Reference updated successfully!');
-                },
-                function (error) {
-                    alert('Error updating reference: ' + error);
+                } else {
+                    // Adding new reference
+                    addReferenceEntry(name, position, company, email, phone);
                 }
-            );
-        });
-    }
+
+                // Reset form and close modal
+                referenceForm.reset();
+                document.getElementById('referenceId').value = '';
+                const modal = bootstrap.Modal.getInstance(document.getElementById('referenceModal'));
+                modal.hide();
+                showSuccessMessage('Reference updated successfully!');
+            },
+            function (error) {
+                alert('Error updating reference: ' + error);
+            }
+        );
+    });
 
     // Function to add a new reference entry
     function addReferenceEntry(name, position, company, email, phone) {
@@ -1539,151 +1351,147 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
 
+    
+// ============ test ============
 
-    // ============ test ============
+// Profile Picture Upload AJAX with Event Delegation
+document.addEventListener('submit', function(e) {
+    if (e.target && e.target.id === 'profilepicUploadForm') {
+        e.preventDefault();
+        console.log('Profile picture ajax loaded from event delegation');
+        
+        const fileInput = document.getElementById('profilepic');
+        const form = e.target;
 
-    // Profile Picture Upload AJAX with Event Delegation
-    document.addEventListener('submit', function (e) {
-        if (e.target && e.target.id === 'profilepicUploadForm') {
-            e.preventDefault();
-            console.log('Profile picture ajax loaded from event delegation');
+        if (fileInput.files.length === 0) {
+            alert('Please select a profile picture.');
+            return;
+        }
 
-            const fileInput = document.getElementById('profilepic');
-            const form = e.target;
+        const file = fileInput.files[0];
+        const allowedTypes = ['image/jpeg', 'image/jpg'];
+        const maxSize = 2 * 1024 * 1024; // 2MB
 
-            if (fileInput.files.length === 0) {
-                alert('Please select a profile picture.');
-                return;
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please select a JPG image file.');
+            return;
+        }
+
+        if (file.size > maxSize) {
+            alert('File size exceeds 2MB limit.');
+            return;
+        }
+
+        // Update preview immediately
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const previewImg = document.getElementById('profilepicPreview');
+            if (previewImg) {
+                previewImg.src = e.target.result;
             }
-
-            const file = fileInput.files[0];
-            const allowedTypes = ['image/jpeg', 'image/jpg'];
-            const maxSize = 2 * 1024 * 1024; // 2MB
-
-            if (!allowedTypes.includes(file.type)) {
-                alert('Please select a JPG image file.');
-                return;
-            }
-
-            if (file.size > maxSize) {
-                alert('File size exceeds 2MB limit.');
-                return;
-            }
-
-            // Update preview immediately
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const previewImg = document.getElementById('profilepicPreview');
-                if (previewImg) {
-                    previewImg.src = e.target.result;
+            document.querySelectorAll('.profile-pic').forEach(img => {
+                if (img.id !== 'profilepicPreview') {
+                    img.src = e.target.result;
                 }
-                document.querySelectorAll('.profile-pic').forEach(img => {
-                    if (img.id !== 'profilepicPreview') {
-                        img.src = e.target.result;
-                    }
-                });
-            };
-            reader.readAsDataURL(file);
+            });
+        };
+        reader.readAsDataURL(file);
 
-            const formData = new FormData();
-            formData.append('profilepic', file);
+        const formData = new FormData();
+        formData.append('profilepic', file);
 
-            // Use the globally available profile nonce
-            const nonce = ajax_common_vars.profile_nonce;
+        // Use the globally available profile nonce
+        const nonce = ajax_common_vars.profile_nonce;
 
-            sendFileUploadRequest(
-                'upload_profile_picture_handler',
-                formData,
-                function (response) {
-                    form.reset();
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('profilepicUploadModal'));
-                    if (modal) {
-                        modal.hide();
-                    }
-                    showSuccessMessage('Profile picture updated successfully!');
-                },
-                function (error) {
-                    alert('Error uploading profile picture: ' + error);
-                },
-                nonce
-            );
-        }
-    });
-
-    // console.log('custom-ajax.js loaded on page:', window.location.pathname);
-
-    // Debug: Check if essential elements exist
-    function debugPageElements() {
-        console.log('=== PAGE DEBUG ===');
-        console.log('profilepicUploadForm exists:', !!document.getElementById('profilepicUploadForm'));
-        console.log('profilepicUploadModal exists:', !!document.getElementById('profilepicUploadModal'));
-        console.log('ajax_common_vars exists:', typeof ajax_common_vars !== 'undefined');
-        console.log('sendFileUploadRequest exists:', typeof sendFileUploadRequest !== 'undefined');
-        console.log('Bootstrap exists:', typeof bootstrap !== 'undefined');
+        sendFileUploadRequest(
+            'upload_profile_picture_handler',
+            formData,
+            function (response) {
+                form.reset();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('profilepicUploadModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                showSuccessMessage('Profile picture updated successfully!');
+            },
+            function (error) {
+                alert('Error uploading profile picture: ' + error);
+            },
+            nonce
+        );
     }
+});
 
-    // Run debug on DOM ready
-    document.addEventListener('DOMContentLoaded', function () {
-        console.log('DOM loaded on:', window.location.pathname);
+console.log('custom-ajax.js loaded on page:', window.location.pathname);
+
+// Debug: Check if essential elements exist
+function debugPageElements() {
+    console.log('=== PAGE DEBUG ===');
+    console.log('profilepicUploadForm exists:', !!document.getElementById('profilepicUploadForm'));
+    console.log('profilepicUploadModal exists:', !!document.getElementById('profilepicUploadModal'));
+    console.log('ajax_common_vars exists:', typeof ajax_common_vars !== 'undefined');
+    console.log('sendFileUploadRequest exists:', typeof sendFileUploadRequest !== 'undefined');
+    console.log('Bootstrap exists:', typeof bootstrap !== 'undefined');
+}
+
+// Run debug on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded on:', window.location.pathname);
+    debugPageElements();
+});
+
+// Also debug when modal is shown (in case it's dynamic)
+document.addEventListener('show.bs.modal', function(e) {
+    console.log('Modal shown:', e.target.id);
+    if (e.target.id === 'profilepicUploadModal') {
         debugPageElements();
-    });
-
-    // Also debug when modal is shown (in case it's dynamic)
-    document.addEventListener('show.bs.modal', function (e) {
-        console.log('Modal shown:', e.target.id);
-        if (e.target.id === 'profilepicUploadModal') {
-            debugPageElements();
-        }
-    });
+    }
+});
 
 
-    // ============ test ============
+// ============ test ============
 
 
 
 
     // Delete Item AJAX (Education, Training, Work Experience, References)
-    const confirmDeleteReference = document.getElementById('confirmDeleteReference');
-    if (confirmDeleteReference) {
-        confirmDeleteReference.addEventListener('click', function () {
-            const modal = document.getElementById('deleteConfirmationModal');
-            const itemId = modal.getAttribute('data-item-id');
-            const itemType = modal.getAttribute('data-item-type');
+    document.getElementById('confirmDeleteReference').addEventListener('click', function () {
+        const modal = document.getElementById('deleteConfirmationModal');
+        const itemId = modal.getAttribute('data-item-id');
+        const itemType = modal.getAttribute('data-item-type');
 
-            if (itemId && itemType) {
-                sendAjaxRequest(
-                    'delete_item',
-                    'POST',
-                    { itemId: itemId, itemType: itemType },
-                    function (response) {
-                        let itemEntry;
-                        if (itemType === 'reference') {
-                            itemEntry = document.querySelector(`.reference-entry[data-id="${itemId}"]`);
-                        } else if (itemType === 'education') {
-                            itemEntry = document.querySelector(`.education-item[data-id="${itemId}"]`);
-                        } else if (itemType === 'training') {
-                            itemEntry = document.querySelector(`.training-item[data-id="${itemId}"]`);
-                        } else if (itemType === 'experience') {
-                            itemEntry = document.querySelector(`.experience-item[data-id="${itemId}"]`);
-                        }
-
-                        if (itemEntry) {
-                            itemEntry.remove();
-                        }
-
-                        // Hide modal
-                        const modalInstance = bootstrap.Modal.getInstance(modal);
-                        modalInstance.hide();
-                        showSuccessMessage('Item deleted successfully!');
-                    },
-                    function (error) {
-                        alert('Error deleting item: ' + error);
+        if (itemId && itemType) {
+            sendAjaxRequest(
+                'delete_item',
+                'POST',
+                { itemId: itemId, itemType: itemType },
+                function (response) {
+                    let itemEntry;
+                    if (itemType === 'reference') {
+                        itemEntry = document.querySelector(`.reference-entry[data-id="${itemId}"]`);
+                    } else if (itemType === 'education') {
+                        itemEntry = document.querySelector(`.education-item[data-id="${itemId}"]`);
+                    } else if (itemType === 'training') {
+                        itemEntry = document.querySelector(`.training-item[data-id="${itemId}"]`);
+                    } else if (itemType === 'experience') {
+                        itemEntry = document.querySelector(`.experience-item[data-id="${itemId}"]`);
                     }
-                );
-            }
-        });
-    }
 
+                    if (itemEntry) {
+                        itemEntry.remove();
+                    }
+
+                    // Hide modal
+                    const modalInstance = bootstrap.Modal.getInstance(modal);
+                    modalInstance.hide();
+                    showSuccessMessage('Item deleted successfully!');
+                },
+                function (error) {
+                    alert('Error deleting item: ' + error);
+                }
+            );
+        }
+    });
 
 
 
@@ -1795,28 +1603,22 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Reset modal when closed
-    const editAboutModal = document.getElementById('editAboutModal');
-    if (editAboutModal) {
-        editAboutModal.addEventListener('hidden.bs.modal', function () {
-            document.getElementById('aboutMeForm').reset();
-        });
-    }
-    const educationFormmodal = document.getElementById('editPersonalInfoModal');
-    if (educationFormmodal) {
-        educationFormmodal.addEventListener('hidden.bs.modal', function () {
-            document.getElementById('personalInfoForm').reset();
-            // Destroy intlTelInput instances
-            if (contactNumberInstance) {
-                contactNumberInstance.destroy();
-                contactNumberInstance = null;
-            }
-            if (altContactInstance) {
-                altContactInstance.destroy();
-                altContactInstance = null;
-            }
-        });
-    }
+    document.getElementById('editAboutModal').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('aboutMeForm').reset();
+    });
 
+    document.getElementById('editPersonalInfoModal').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('personalInfoForm').reset();
+        // Destroy intlTelInput instances
+        if (contactNumberInstance) {
+            contactNumberInstance.destroy();
+            contactNumberInstance = null;
+        }
+        if (altContactInstance) {
+            altContactInstance.destroy();
+            altContactInstance = null;
+        }
+    });
 
     document.getElementById('editEducationModal').addEventListener('hidden.bs.modal', function () {
         educationForm.reset();
@@ -1894,118 +1696,107 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // =================== Work Experience AJAX ==============//
 const workExperienceForm = document.getElementById('workExperienceForm');
-if (workExperienceForm) {
-    const experienceHiddenIdInput = document.createElement('input');
-    experienceHiddenIdInput.type = 'hidden';
-    experienceHiddenIdInput.id = 'experienceId';
-    experienceHiddenIdInput.name = 'experienceId';
-    workExperienceForm.appendChild(experienceHiddenIdInput);
-}
+const experienceHiddenIdInput = document.createElement('input');
+experienceHiddenIdInput.type = 'hidden';
+experienceHiddenIdInput.id = 'experienceId';
+experienceHiddenIdInput.name = 'experienceId';
+workExperienceForm.appendChild(experienceHiddenIdInput);
+
 // Initialize Quill editor
-let quill;
-const quillEditorContainer = document.getElementById('quillEditor');
-if (quillEditorContainer) {
-    quill = new Quill('#quillEditor', {
-        theme: 'snow',
-        placeholder: 'Describe your responsibilities...',
-    });
-} else {
-    //console.error('Quill editor container not found');
-}
+const quill = new Quill('#quillEditor', {
+    theme: 'snow',
+    placeholder: 'Describe your responsibilities...',
+});
+
 // Handle currently working checkbox
 const currentlyWorking = document.getElementById('currentlyWorking');
 const endDateInput = document.getElementById('endDate');
 
-if (currentlyWorking) {
-    currentlyWorking.addEventListener('change', function () {
-        if (this.checked) {
-            endDateInput.disabled = true;
-            endDateInput.value = '';
-        } else {
-            endDateInput.disabled = false;
-        }
-    });
-}
-const saveWorkExperienceButton = document.getElementById('saveWorkExperience');
-if (saveWorkExperienceButton) {
-    // Handle save button click
-    saveWorkExperienceButton.addEventListener('click', function () {
-        // Update the hidden responsibilities field with the Quill content
-        document.getElementById('responsibilities').value = quill.root.innerHTML;
+currentlyWorking.addEventListener('change', function () {
+    if (this.checked) {
+        endDateInput.disabled = true;
+        endDateInput.value = '';
+    } else {
+        endDateInput.disabled = false;
+    }
+});
 
-        // Get form values
-        const experienceId = document.getElementById('experienceId').value;
-        const jobTitle = document.getElementById('jobTitle').value.trim();
-        const companyName = document.getElementById('companyName').value.trim();
-        const startDate = document.getElementById('startDate').value;
-        const endDate = currentlyWorking.checked ? 'Present' : document.getElementById('endDate').value;
-        const responsibilities = quill.root.innerHTML;
+// Handle save button click
+document.getElementById('saveWorkExperience').addEventListener('click', function () {
+    // Update the hidden responsibilities field with the Quill content
+    document.getElementById('responsibilities').value = quill.root.innerHTML;
 
-        // Validate required fields
-        if (!jobTitle || !companyName || !startDate || (!endDate && !currentlyWorking.checked)) {
-            alert('Please fill in all required fields.');
-            return;
-        }
+    // Get form values
+    const experienceId = document.getElementById('experienceId').value;
+    const jobTitle = document.getElementById('jobTitle').value.trim();
+    const companyName = document.getElementById('companyName').value.trim();
+    const startDate = document.getElementById('startDate').value;
+    const endDate = currentlyWorking.checked ? 'Present' : document.getElementById('endDate').value;
+    const responsibilities = quill.root.innerHTML;
 
-        // Validate date range
-        if (!currentlyWorking.checked && new Date(startDate) > new Date(endDate)) {
-            alert('Start date cannot be after end date.');
-            return;
-        }
+    // Validate required fields
+    if (!jobTitle || !companyName || !startDate || (!endDate && !currentlyWorking.checked)) {
+        alert('Please fill in all required fields.');
+        return;
+    }
 
-        // Disable submit button to prevent double submission
+    // Validate date range
+    if (!currentlyWorking.checked && new Date(startDate) > new Date(endDate)) {
+        alert('Start date cannot be after end date.');
+        return;
+    }
 
-        saveWorkExperienceButton.disabled = true;
-        saveWorkExperienceButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+    // Disable submit button to prevent double submission
+    const submitButton = document.getElementById('saveWorkExperience');
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-        const formData = {
-            experienceId: experienceId,
-            jobTitle: jobTitle,
-            companyName: companyName,
-            startDate: startDate,
-            endDate: endDate,
-            responsibilities: responsibilities
-        };
+    const formData = {
+        experienceId: experienceId,
+        jobTitle: jobTitle,
+        companyName: companyName,
+        startDate: startDate,
+        endDate: endDate,
+        responsibilities: responsibilities
+    };
 
-        sendAjaxRequest(
-            'update_work_experience',
-            'POST',
-            formData,
-            function (response) {
-                // If we're adding a new entry, use the ID returned from the server
-                const newId = response.id || 'exp_' + Date.now();
+    sendAjaxRequest(
+        'update_work_experience',
+        'POST',
+        formData,
+        function (response) {
+            // If we're adding a new entry, use the ID returned from the server
+            const newId = response.id || 'exp_' + Date.now();
 
-                if (experienceId) {
-                    // Update existing entry
-                    updateExperienceEntry(experienceId, jobTitle, companyName, startDate, endDate, responsibilities);
-                } else {
-                    // Add new entry with the ID from the server
-                    addExperienceEntry(newId, jobTitle, companyName, startDate, endDate, responsibilities);
-                }
-
-                // Reset form and close modal
-                workExperienceForm.reset();
-                quill.setText('');
-                document.getElementById('experienceId').value = '';
-                endDateInput.disabled = false;
-                const modal = bootstrap.Modal.getInstance(document.getElementById('workExperienceModal'));
-                modal.hide();
-                showSuccessMessage('Work experience updated successfully!');
-
-                // Re-enable submit button
-                saveWorkExperienceButton.disabled = false;
-                saveWorkExperienceButton.innerHTML = 'Save';
-            },
-            function (error) {
-                alert('Error updating work experience: ' + error);
-                // Re-enable submit button
-                saveWorkExperienceButton.disabled = false;
-                saveWorkExperienceButton.innerHTML = 'Save';
+            if (experienceId) {
+                // Update existing entry
+                updateExperienceEntry(experienceId, jobTitle, companyName, startDate, endDate, responsibilities);
+            } else {
+                // Add new entry with the ID from the server
+                addExperienceEntry(newId, jobTitle, companyName, startDate, endDate, responsibilities);
             }
-        );
-    });
 
-}
+            // Reset form and close modal
+            workExperienceForm.reset();
+            quill.setText('');
+            document.getElementById('experienceId').value = '';
+            endDateInput.disabled = false;
+            const modal = bootstrap.Modal.getInstance(document.getElementById('workExperienceModal'));
+            modal.hide();
+            showSuccessMessage('Work experience updated successfully!');
+
+            // Re-enable submit button
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Save';
+        },
+        function (error) {
+            alert('Error updating work experience: ' + error);
+            // Re-enable submit button
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Save';
+        }
+    );
+});
 
 // Function to add new experience entry
 function addExperienceEntry(id, jobTitle, companyName, startDate, endDate, responsibilities) {
@@ -2242,5 +2033,12 @@ function parseDateForInput(dateStr) {
     }
     return dateStr; // Return as-is if already in a different format
 }
+
+
+
+
+
+
+
 
 

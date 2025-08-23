@@ -640,6 +640,61 @@ function create_job_applications_table() {
 }
 add_action('init', 'create_job_applications_table');
 
+// Create notification table on theme activation
+function create_notification_table() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'user_notifications';
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        user_id bigint(20) NOT NULL,
+        message text NOT NULL,
+        type varchar(50) NOT NULL,
+        status varchar(20) DEFAULT 'unread',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        related_item_id bigint(20) DEFAULT NULL,
+        PRIMARY KEY  (id),
+        KEY user_id (user_id),
+        KEY status (status)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('init', 'create_notification_table');
+
+
+function update_job_applications_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'job_applications';
+    
+    // Check if interview_date column exists
+    $column_exists = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        DB_NAME,
+        $table_name,
+        'interview_date'
+    ));
+    
+    if (empty($column_exists)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN interview_date datetime NULL AFTER status");
+    }
+    
+    // Check if interview_location column exists
+    $column_exists = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+        DB_NAME,
+        $table_name,
+        'interview_location'
+    ));
+    
+    if (empty($column_exists)) {
+        $wpdb->query("ALTER TABLE $table_name ADD COLUMN interview_location varchar(255) NULL AFTER interview_date");
+    }
+}
+add_action('init', 'update_job_applications_table');
 
 function create_user_profile_page() {
     // Only run on theme activation
@@ -777,7 +832,6 @@ function display_job_applications_page() {
 
 
 
-// Add this at the beginning of the function
 function view_job_applications_page() {
     // Add this right after wp_localize_script
     wp_add_inline_script('job-applications-admin', 'console.log("Job applications script loaded"); console.log(job_applications_vars);');
@@ -789,11 +843,7 @@ function view_job_applications_page() {
     $nonce = wp_create_nonce('job_applications_nonce');
     
     // Enqueue our custom script and pass variables to it
-    wp_enqueue_script('job-applications-admin', get_template_directory_uri() . '/js/admincustom.js', array('jquery'), '1.0', true);
-    wp_localize_script('job-applications-admin', 'job_applications_vars', array(
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => $nonce
-    ));
+
     
     global $wpdb;
     $job_id = isset($_GET['job_id']) ? intval($_GET['job_id']) : 0;
@@ -821,18 +871,19 @@ function view_job_applications_page() {
         WHERE job_id = %d GROUP BY status", 
         $job_id
     ));
-
     $shortlisted_count = 0;
     $rejected_count = 0;
     $new_count = 0;
-
+    $interview_scheduled_count = 0;
     foreach ($status_counts as $count) {
         if ($count->status === 'shortlisted') {
             $shortlisted_count = $count->count;
         } elseif ($count->status === 'rejected') {
             $rejected_count = $count->count;
-        } elseif ($count->status === 'new') {
-            $new_count = $count->count;
+        } elseif ($count->status === 'new' || $count->status === 'pending') {
+            $new_count += $count->count;
+        } elseif ($count->status === 'interview_scheduled') {
+            $interview_scheduled_count = $count->count;
         }
     }
     
@@ -995,130 +1046,131 @@ function view_job_applications_page() {
             </form>
         </div>
         
-
-        
         <!-- Main content area -->
         <div class="applications-content">
-                    <!-- Status Filter -->
-        <div class="status-filter-container">
-            <div class="job-info-section">
-                <div class="job-status">
-                    <span class="status-label">Job Status:</span>
-                    <?php
-                    // Get the job ID from URL parameter and sanitize it
-                    $job_id = isset($_GET['job_id']) ? absint($_GET['job_id']) : 0;
-                    $deadline = get_post_meta($job_id, '_job_deadline', true);
-                    if($deadline>= date('Y-m-d')){
-                        $job_status = 'Active';
-                    } else {
-                        $job_status = 'Expired';
-                    }        
-                    ?>
-                    <span class="status-value job-<?php echo $job_status; ?>">
-                        <?php echo $job_status; ?>
-                    </span>
+            <!-- Status Filter -->
+            <div class="status-filter-container">
+                <div class="job-info-section">
+                    <div class="job-status">
+                        <span class="status-label">Job Status:</span>
+                        <?php
+                        $deadline = get_post_meta($job_id, '_job_deadline', true);
+                        if($deadline >= date('Y-m-d')){
+                            $job_status = 'Active';
+                        } else {
+                            $job_status = 'Expired';
+                        }        
+                        ?>
+                        <span class="status-value job-<?php echo $job_status; ?>">
+                            <?php echo $job_status; ?>
+                        </span>
+                    </div>
+                    
+                    <div class="job-actions">
+                        <a href="<?php echo esc_url(admin_url('post.php?post='.$job_id.'&action=edit')); ?>" class="button edit-button">
+                            <?php _e('Edit', 'text-domain'); ?>
+                        </a>
+                        <a href="<?php echo get_permalink($job_id); ?>" target="_blank" class="button preview-button">
+                            <?php _e('Preview', 'text-domain'); ?>
+                        </a>
+                    </div>
+                    
+                    <div class="job-deadline">
+                        <span class="deadline-label">Deadline:</span>
+                        <span class="deadline-value"><?php echo date('F j, Y', strtotime($deadline)); ?></span>
+                    </div>
+                    
+                    <div class="job-share">
+                        <span class="share-label">Share:</span>
+                        <?php 
+                        $current_url = urlencode(get_permalink($job_id));
+                        $title = urlencode(get_the_title($job_id));
+                        ?>
+                        <div class="share-icons">
+                            <!-- Facebook -->
+                            <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo $current_url; ?>" 
+                            class="share-icon facebook" title="Share on Facebook" target="_blank">
+                                <i class="fab fa-facebook-f"></i>
+                            </a>
+                            <!-- Twitter -->
+                            <a href="https://twitter.com/intent/tweet?url=<?php echo $current_url; ?>&text=<?php echo $title; ?>" 
+                            class="share-icon twitter" title="Share on Twitter" target="_blank">
+                                <i class="fab fa-twitter"></i>
+                            </a>
+                            <!-- LinkedIn -->
+                            <a href="https://www.linkedin.com/shareArticle?mini=true&url=<?php echo $current_url; ?>&title=<?php echo $title; ?>" 
+                            class="share-icon linkedin" title="Share on LinkedIn" target="_blank">
+                                <i class="fab fa-linkedin-in"></i>
+                            </a>
+                            <!-- Email -->
+                            <a href="mailto:?subject=<?php echo $title; ?>&body=Check this out: <?php echo $current_url; ?>" 
+                            class="share-icon email" title="Share via Email">
+                                <i class="fas fa-envelope"></i>
+                            </a>
+                            <!-- Copy Link -->
+                            <a href="javascript:void(0);" 
+                            class="share-icon copy" 
+                            title="Copy Link" 
+                            onclick="copyLink('<?php echo get_permalink($job_id); ?>')">
+                                <i class="fas fa-link"></i>
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="job-actions">
-                    <a href="<?php echo esc_url(admin_url('post.php?post='.$job_id.'&action=edit')); ?>" class="button edit-button">
-                        <?php _e('Edit', 'text-domain'); ?>
-                    </a>
-                    <a href="<?php echo get_permalink($job_id); ?>" target="_blank" class="button preview-button">
-                        <?php _e('Preview', 'text-domain'); ?>
-                    </a>
-                </div>
-                
-                <div class="job-deadline">
-                    <span class="deadline-label">Deadline:</span>
-                    <span class="deadline-value"><?php echo date('F j, Y', strtotime($deadline)); ?></span>
-                </div>
-                
-                <div class="job-share">
-                    <span class="share-label">Share:</span>
-                <?php 
-                $job_id = isset($_GET['job_id']) ? absint($_GET['job_id']) : 0;
-                $current_url = $job_id ? urlencode(get_permalink($job_id)) : urlencode(get_permalink());
-                $title = $job_id ? urlencode(get_the_title($job_id)) : urlencode(get_the_title());
-                ?>
-
-                <div class="share-icons">
-                    <!-- Facebook -->
-                    <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo $current_url; ?>" 
-                    class="share-icon facebook" title="Share on Facebook" target="_blank">
-                        <i class="fab fa-facebook-f"></i>
-                    </a>
-
-                    <!-- Twitter -->
-                    <a href="https://twitter.com/intent/tweet?url=<?php echo $current_url; ?>&text=<?php echo $title; ?>" 
-                    class="share-icon twitter" title="Share on Twitter" target="_blank">
-                        <i class="fab fa-twitter"></i>
-                    </a>
-
-                    <!-- LinkedIn -->
-                    <a href="https://www.linkedin.com/shareArticle?mini=true&url=<?php echo $current_url; ?>&title=<?php echo $title; ?>" 
-                    class="share-icon linkedin" title="Share on LinkedIn" target="_blank">
-                        <i class="fab fa-linkedin-in"></i>
-                    </a>
-
-                    <!-- Email -->
-                    <a href="mailto:?subject=<?php echo $title; ?>&body=Check this out: <?php echo $current_url; ?>" 
-                    class="share-icon email" title="Share via Email">
-                        <i class="fas fa-envelope"></i>
-                    </a>
-
-                    <!-- Copy Link -->
-                    <a href="javascript:void(0);" 
-                    class="share-icon copy" 
-                    title="Copy Link" 
-                    onclick="copyLink('<?php echo get_permalink($job_id); ?>')">
-                        <i class="fas fa-link"></i>
-                    </a>
-                </div>
-
-
-
-
-                </div>
+                <form method="get" action="<?php echo esc_url($base_url); ?>" id="statusFilterForm">
+                    <input type="hidden" name="post_type" value="job">
+                    <input type="hidden" name="page" value="view_job_applications">
+                    <input type="hidden" name="job_id" value="<?php echo esc_attr($job_id); ?>">
+                    
+                    <!-- Preserve other filter parameters -->
+                    <?php if (!empty($user_present_district)): ?>
+                        <input type="hidden" name="present_district" value="<?php echo esc_attr($user_present_district); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($user_permanent_district)): ?>
+                        <input type="hidden" name="permanent_district" value="<?php echo esc_attr($user_permanent_district); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($highest_education)): ?>
+                        <input type="hidden" name="highest_education" value="<?php echo esc_attr($highest_education); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($experience_years)): ?>
+                        <input type="hidden" name="experience_years" value="<?php echo esc_attr($experience_years); ?>">
+                    <?php endif; ?>
+                    
+                    <div class="filter-group">
+                        <label for="status_filter"><?php _e('Application Status', 'text-domain'); ?></label>
+                        <select name="status" id="status_filter">
+                            <option value="all" <?php selected($current_status, 'all'); ?>>
+                                <?php printf(__('All Applications (%d)', 'text-domain'), $total_applications); ?>
+                            </option>
+                            <option value="shortlisted" <?php selected($current_status, 'shortlisted'); ?>>
+                                <?php printf(__('Shortlisted (%d)', 'text-domain'), $shortlisted_count); ?>
+                            </option>
+                            <option value="interview_scheduled" <?php selected($current_status, 'interview_scheduled'); ?>>
+                                <?php printf(__('Interview Scheduled (%d)', 'text-domain'), $interview_scheduled_count); ?>
+                            </option>
+                            <option value="rejected" <?php selected($current_status, 'rejected'); ?>>
+                                <?php printf(__('Rejected (%d)', 'text-domain'), $rejected_count); ?>
+                            </option>
+                            <option value="new" <?php selected($current_status, 'new'); ?>>
+                                <?php printf(__('No Action (%d)', 'text-domain'), $new_count); ?>
+                            </option>
+                        </select>
+                    </div>
+                </form>
             </div>
             
-            <form method="get" action="<?php echo esc_url($base_url); ?>" id="statusFilterForm">
-                <input type="hidden" name="post_type" value="job">
-                <input type="hidden" name="page" value="view_job_applications">
-                <input type="hidden" name="job_id" value="<?php echo esc_attr($job_id); ?>">
-                
-                <!-- Preserve other filter parameters -->
-                <?php if (!empty($user_present_district)): ?>
-                    <input type="hidden" name="present_district" value="<?php echo esc_attr($user_present_district); ?>">
-                <?php endif; ?>
-                <?php if (!empty($user_permanent_district)): ?>
-                    <input type="hidden" name="permanent_district" value="<?php echo esc_attr($user_permanent_district); ?>">
-                <?php endif; ?>
-                <?php if (!empty($highest_education)): ?>
-                    <input type="hidden" name="highest_education" value="<?php echo esc_attr($highest_education); ?>">
-                <?php endif; ?>
-                <?php if (!empty($experience_years)): ?>
-                    <input type="hidden" name="experience_years" value="<?php echo esc_attr($experience_years); ?>">
-                <?php endif; ?>
-                
-                <div class="filter-group">
-                    <label for="status_filter"><?php _e('Application Status', 'text-domain'); ?></label>
-                    <select name="status" id="status_filter">
-                        <option value="all" <?php selected($current_status, 'all'); ?>>
-                            <?php printf(__('All Applications (%d)', 'text-domain'), $total_applications); ?>
-                        </option>
-                        <option value="shortlisted" <?php selected($current_status, 'shortlisted'); ?>>
-                            <?php printf(__('Shortlisted (%d)', 'text-domain'), $shortlisted_count); ?>
-                        </option>
-                        <option value="rejected" <?php selected($current_status, 'rejected'); ?>>
-                            <?php printf(__('Rejected (%d)', 'text-domain'), $rejected_count); ?>
-                        </option>
-                        <option value="new" <?php selected($current_status, 'new'); ?>>
-                            <?php printf(__('No Action (%d)', 'text-domain'), $new_count); ?>
-                        </option>
-                    </select>
-                </div>
-            </form>
-        </div>
+            <!-- Bulk Actions Bar -->
+            <div class="bulk-actions" style="display: none; margin: 15px 0;">
+                <select id="bulk-action-select">
+                    <option value="">Bulk Actions</option>
+                    <option value="shortlist">Shortlist</option>
+                    <option value="reject">Reject</option>
+                    <option value="schedule">Schedule Interview</option>
+                </select>
+                <button id="do-bulk-action" class="button">Apply</button>
+            </div>
+            
             <?php if (empty($results)): ?>
                 <p><?php esc_html_e('No applications found with the current filters.', 'text-domain'); ?></p>
             <?php else: ?>
@@ -1168,7 +1220,7 @@ function view_job_applications_page() {
                     // Get user ID and experience data
                     $user_id = $app->user_id;
                     $user_info = get_userdata($user_id);
-                    $hometown = get_user_meta($user_id, 'placeofbirth', true); // Fixed: get from usermeta
+                    $hometown = get_user_meta($user_id, 'placeofbirth', true);
                     $experience_entries = get_user_meta($user_id, 'work_experience', true);
                     if (!is_array($experience_entries)) {
                         $experience_entries = array();
@@ -1214,8 +1266,17 @@ function view_job_applications_page() {
                     
                     // Store total months in a data attribute for filtering
                     $data_experience = $total_months > 0 ? $total_months : 0;
+                    
+                    // Get application status and check if interview date is passed
+                    $status = isset($app->status) ? $app->status : 'new';
+                    $interview_passed = !empty($app->interview_date) && strtotime($app->interview_date) < current_time('timestamp');
                 ?>
-                <div class="applicant-card" id="applicant-<?php echo esc_attr($app->id); ?>" data-experience-months="<?php echo esc_attr($data_experience); ?>">
+                <div class="applicant-card" id="applicant-<?php echo esc_attr($app->id); ?>" data-application-id="<?php echo esc_attr($app->id); ?>" data-experience-months="<?php echo esc_attr($data_experience); ?>">
+                    <!-- Checkbox for bulk selection -->
+                    <div class="applicant-checkbox">
+                        <input type="checkbox" class="application-checkbox" value="<?php echo esc_attr($app->id); ?>">
+                    </div>
+                    
                     <div class="applicant-avatar">
                         <img src="<?php echo esc_url(get_avatar_url($app->user_id)); ?>" alt="<?php echo esc_attr($app->full_name); ?>" class="avatar-image">
                     </div>
@@ -1227,7 +1288,7 @@ function view_job_applications_page() {
                             <div class="detail-item">
                                 <svg class="detail-icon" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 012 2h12a2 2 0 002-2V8.118z" />
+                                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                                 </svg>
                                 <?php echo esc_html($app->email); ?>
                             </div>
@@ -1250,151 +1311,197 @@ function view_job_applications_page() {
                         </div>
                         
                         <div class="application-date">Applied: <?php echo esc_html($applied_date); ?></div>
+                        
+                        <?php if (!empty($app->interview_date)): ?>
+                        <div class="interview-info">
+                            <strong>Interview:</strong> 
+                            <span id="interview_date"><?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($app->interview_date)); ?></span>
+                            <br>
+                            <strong>Location:</strong> <span id="location"><?php echo esc_html($app->interview_location); ?></span>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     
                     <div class="education-section">
                         <div class="section-title">Education</div>
-                        <?php // Education
-                            $education_entries = get_user_meta($user_id, 'education', true);
-                            if (!is_array($education_entries)) {
-                                $education_entries = array();
-                            } 
-                            if(!empty($education_entries)){
-                                foreach ($education_entries as $entry) {
-                                    $degree = isset($entry['degree']) ? esc_html($entry['degree']) : 'Not provided';
-                                    $institution = isset($entry['institution']) ? esc_html($entry['institution']) : 'Not provided';
-                                    // Build description
-                                    $description = '';
-                                    if (!empty($entry['major'])) {
-                                        $description = 'Specialized in ' . esc_html($entry['major']) . '. ';
-                                    }
-                                    ?>
-                                    <div class="education-item">
-                                        <div class="item-degree"><strong><?php echo $degree; ?></strong></div>
-                                        <div class="item-school"><?php echo $institution; ?></div>
-                                        <div class="item-duration">
-                                            <i class="fas fa-graduation-cap"></i>
-                                            <span><?php echo $description; ?></span>
-                                        </div>
-                                    </div>
-                                <?php
+                        <?php 
+                        $education_entries = get_user_meta($user_id, 'education', true);
+                        if (!is_array($education_entries)) {
+                            $education_entries = array();
+                        } 
+                        if(!empty($education_entries)){
+                            foreach ($education_entries as $entry) {
+                                $degree = isset($entry['degree']) ? esc_html($entry['degree']) : 'Not provided';
+                                $institution = isset($entry['institution']) ? esc_html($entry['institution']) : 'Not provided';
+                                $description = '';
+                                if (!empty($entry['major'])) {
+                                    $description = 'Specialized in ' . esc_html($entry['major']) . '. ';
                                 }
-                            }else {
-                                echo '<div class="education-item">No education details provided</div>';
+                                ?>
+                                <div class="education-item">
+                                    <div class="item-degree"><strong><?php echo $degree; ?></strong></div>
+                                    <div class="item-school"><?php echo $institution; ?></div>
+                                    <div class="item-duration">
+                                        <i class="fas fa-graduation-cap"></i>
+                                        <span><?php echo $description; ?></span>
+                                    </div>
+                                </div>
+                                <?php
                             }
-                            ?>
+                        } else {
+                            echo '<div class="education-item">No education details provided</div>';
+                        }
+                        ?>
                     </div>
+                    
                     <div class="experience-section">
-                                <div class="section-title">Work Experience</div>
-                                    <?php // Work Experience
-                                    if(!empty($experience_entries)){
-                                        foreach ($experience_entries as $entry) {
-                                            $job_title = isset($entry['job_title']) ? esc_html($entry['job_title']) : 'Not provided';
-                                            $company = isset($entry['company']) ? esc_html($entry['company']) : 'Not provided';
-                                            // Format dates for display
-                                            $start_date = isset($entry['start_date']) ? $entry['start_date'] : '';
-                                            $end_date = isset($entry['end_date']) ? $entry['end_date'] : '';
-                                            $duration = '';
-
-                                            if (!empty($start_date)) {
-                                                // Create DateTime objects
-                                                $start = new DateTime($start_date);
-                                                
-                                                // Format start date
-                                                $formatted_start_date = $start->format('M d, Y');
-                                                
-                                                // Handle end date
-                                                if (empty($end_date) || strtolower($end_date) === 'present') {
-                                                    $end = new DateTime(); // current date for ongoing jobs
-                                                    $formatted_end_date = 'Present';
-                                                } else {
-                                                    $end = new DateTime($end_date);
-                                                    $formatted_end_date = $end->format('M d, Y');
-                                                }
-                                                
-                                                // Calculate duration
-                                                $interval = $start->diff($end);
-                                                $years = $interval->y;
-                                                $months = $interval->m;
-                                                
-                                                // Build duration string
-                                                $duration_text = '';
-                                                if ($years > 0) {
-                                                    $duration_text .= $years . ' year' . ($years > 1 ? 's' : '');
-                                                }
-                                                if ($months > 0) {
-                                                    if (!empty($duration_text)) {
-                                                        $duration_text .= ', ';
-                                                    }
-                                                    $duration_text .= $months . ' month' . ($months > 1 ? 's' : '');
-                                                }
-                                                
-                                                // Combine formatted dates with duration
-                                                $duration = $formatted_start_date . ' - ' . $formatted_end_date;
-                                                if (!empty($duration_text)) {
-                                                    $duration .= ' (' . $duration_text . ')';
-                                                }
-                                            } else {
-                                                $duration = 'Duration not available';
-                                            }
-                                            ?>
-                                            <div class="experience-item">
-                                                <div class="item-title"><strong><?php echo $company; ?></strong></div>
-                                                <div class="item-duration"><?php echo $job_title; ?></div>
-                                                <div class="item-duration"><?php echo $duration; ?></div>
-                                            </div>
-                                        <?php
-                                        }
+                        <div class="section-title">Work Experience</div>
+                        <?php 
+                        if(!empty($experience_entries)){
+                            foreach ($experience_entries as $entry) {
+                                $job_title = isset($entry['job_title']) ? esc_html($entry['job_title']) : 'Not provided';
+                                $company = isset($entry['company']) ? esc_html($entry['company']) : 'Not provided';
+                                
+                                // Format dates for display
+                                $start_date = isset($entry['start_date']) ? $entry['start_date'] : '';
+                                $end_date = isset($entry['end_date']) ? $entry['end_date'] : '';
+                                $duration = '';
+                                if (!empty($start_date)) {
+                                    $start = new DateTime($start_date);
+                                    
+                                    // Format start date
+                                    $formatted_start_date = $start->format('M d, Y');
+                                    
+                                    // Handle end date
+                                    if (empty($end_date) || strtolower($end_date) === 'present') {
+                                        $end = new DateTime(); // current date for ongoing jobs
+                                        $formatted_end_date = 'Present';
                                     } else {
-                                        echo '<div class="experience-item">No work experience details provided</div>';
-                                    } ?>
+                                        $end = new DateTime($end_date);
+                                        $formatted_end_date = $end->format('M d, Y');
+                                    }
+                                    
+                                    // Calculate duration
+                                    $interval = $start->diff($end);
+                                    $years = $interval->y;
+                                    $months = $interval->m;
+                                    
+                                    // Build duration string
+                                    $duration_text = '';
+                                    if ($years > 0) {
+                                        $duration_text .= $years . ' year' . ($years > 1 ? 's' : '');
+                                    }
+                                    if ($months > 0) {
+                                        if (!empty($duration_text)) {
+                                            $duration_text .= ', ';
+                                        }
+                                        $duration_text .= $months . ' month' . ($months > 1 ? 's' : '');
+                                    }
+                                    
+                                    // Combine formatted dates with duration
+                                    $duration = $formatted_start_date . ' - ' . $formatted_end_date;
+                                    if (!empty($duration_text)) {
+                                        $duration .= ' (' . $duration_text . ')';
+                                    }
+                                } else {
+                                    $duration = 'Duration not available';
+                                }
+                                ?>
+                                <div class="experience-item">
+                                    <div class="item-title"><strong><?php echo $company; ?></strong></div>
+                                    <div class="item-duration"><?php echo $job_title; ?></div>
+                                    <div class="item-duration"><?php echo $duration; ?></div>
+                                </div>
+                                <?php
+                            }
+                        } else {
+                            echo '<div class="experience-item">No work experience details provided</div>';
+                        } ?>
                     </div>
                     
-                <div class="applicant-actions">
-                    <?php 
-                    // Get the status from the application data
-                    $status = isset($app->status) ? $app->status : 'new';
-                    
-                    // Set badge class and text based on status
-                    switch ($status) {
-                        case 'shortlisted':
-                            $badge_class = 'status-shortlisted';
-                            $badge_text = 'Shortlisted';
-                            break;
-                        case 'rejected':
-                            $badge_class = 'status-rejected';
-                            $badge_text = 'Rejected';
-                            break;
-                        default:
-                            $badge_class = 'status-new';
-                            $badge_text = 'New Application';
-                    }
-                    
-                    // Output the dynamic status badge
-                    echo '<span class="status-badge ' . esc_attr($badge_class) . '">' . esc_html($badge_text) . '</span>';
-                    ?>
-                    
-                    <button class="action-btn btn-shortlist" data-applicant-id="<?php echo esc_attr($app->id); ?>">
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                        </svg>
-                        <?php echo ($status === 'shortlisted') ? 'Shortlisted' : 'Shortlist'; ?>
-                    </button>
-                    
-                    <button class="action-btn btn-reject" data-applicant-id="<?php echo esc_attr($app->id); ?>">
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                        <?php echo ($status === 'rejected') ? 'Rejected' : 'Reject'; ?>
-                    </button>
-                    
-                    <button class="action-btn btn-download" data-applicant-id="<?php echo esc_attr($app->id); ?>">
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                        Download CV
-                    </button>
-                </div>
+                    <div class="applicant-actions">
+                        <?php 
+                        // Set badge class and text based on status
+                        switch ($status) {
+                            case 'shortlisted':
+                                $badge_class = 'status-shortlisted';
+                                $badge_text = 'Shortlisted';
+                                break;
+                            case 'rejected':
+                                $badge_class = 'status-rejected';
+                                $badge_text = 'Rejected';
+                                break;
+                            case 'interview_scheduled':
+                                $badge_class = 'status-interview_scheduled';
+                                $badge_text = 'Interview Scheduled';
+                                break;
+                            default:
+                                $badge_class = 'status-new';
+                                $badge_text = 'New Application';
+                        }
+                        
+                        // Output the dynamic status badge
+                        echo '<span class="status-badge ' . esc_attr($badge_class) . '">' . esc_html($badge_text) . '</span>';
+                        
+                        // Add buttons based on status
+                        if ($status === 'pending' || $status === 'new'):
+                            echo '<button class="action-btn btn-shortlist" data-applicant-id="' . esc_attr($app->id) . '">
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                Shortlist
+                            </button>
+                            <button class="action-btn btn-reject" data-applicant-id="' . esc_attr($app->id) . '">
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                Reject
+                            </button>';
+                        elseif ($status === 'shortlisted'):
+                            echo '<button class="action-btn btn-schedule" data-applicant-id="' . esc_attr($app->id) . '">
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                </svg>
+                                Schedule Interview
+                            </button>
+                            <button class="action-btn btn-reject" data-applicant-id="' . esc_attr($app->id) . '">
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                Reject
+                            </button>';
+                        elseif ($status === 'interview_scheduled'):
+                            if ($interview_passed):
+                                echo '<button class="action-btn btn-reschedule" data-applicant-id="' . esc_attr($app->id) . '">
+                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                                    </svg>
+                                    Reschedule
+                                </button>';
+                            else:
+                                echo '<button class="action-btn" disabled>
+                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                    </svg>
+                                    Scheduled
+                                </button>';
+                            endif;
+                            echo '<button class="action-btn btn-reject" data-applicant-id="' . esc_attr($app->id) . '">
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                Reject
+                            </button>';
+                        endif;
+                        
+                        echo '<button class="action-btn btn-download" data-applicant-id="' . esc_attr($app->id) . '">
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Download CV
+                        </button>';
+                        ?>
+                    </div>
                 </div>
                 <?php
                 }
@@ -1439,34 +1546,7 @@ function view_job_applications_page() {
             <?php endif; ?>
         </div>
     </div>
-    
-    <script>
-    jQuery(document).ready(function($) {
-        // Handle status filter change
-        $('#status_filter').on('change', function() {
-            $('#statusFilterForm').submit();
-        });
-        
-        // Update experience years when slider changes
-        $('#experience_slider').on('input', function() {
-            var value = $(this).val();
-            $('#experience_display').text(value + ' years');
-            $('#experience_years').val(value);
-        });
-        
-        // Filter applications by experience if a value is selected
-        if ($('#experience_years').val() > 0) {
-            var minMonths = parseInt($('#experience_years').val()) * 12;
-            $('.applicant-card').each(function() {
-                var experienceMonths = parseInt($(this).data('experience-months'));
-                if (experienceMonths < minMonths) {
-                    $(this).hide();
-                }
-            });
-        }
-    });
-    </script>
-    
+
     <?php
     echo '</div>';
 }
@@ -1598,3 +1678,18 @@ function get_education_options() {
     return $education_levels;
 }
 
+// functions.php or plugin file
+add_action('template_redirect', 'mark_all_notifications_read');
+function mark_all_notifications_read() {
+    if (isset($_POST['mark_all_read'])) {
+        global $wpdb;
+        $current_user_id = get_current_user_id();
+        $wpdb->update(
+            "{$wpdb->prefix}user_notifications",
+            [ 'status' => 'read' ],
+            [ 'user_id' => $current_user_id ]
+        );
+        wp_safe_redirect($_SERVER['REQUEST_URI']);
+        exit;
+    }
+}

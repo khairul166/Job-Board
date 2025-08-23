@@ -46,6 +46,7 @@
             font-size: 0.8rem;
             font-weight: 600;
             display: inline-block;
+            text-transform: capitalize;
         }
 
         .full-time {
@@ -489,25 +490,24 @@
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
         
-        
-        .status-pending {
-            background-color: #f6c23e;
-            color: #1f2d3d;
-        }
+
         
         .status-reviewing {
             background-color: #36b9cc;
             color: white;
+            text-transform: capitalize;
         }
         
-        .status-accepted {
+        .status-shortlisted {
             background-color: #1cc88a;
             color: white;
+            text-transform: capitalize;
         }
         
         .status-rejected {
             background-color: #e74a3b;
             color: white;
+            text-transform: capitalize;
         }
 
         /* archives page css */
@@ -705,7 +705,8 @@
         
         .status-pending {
             background-color: #f6c23e;
-            color: #1f2d3d;
+            color: #241c00;
+            text-transform: capitalize;
         }
         
         .status-reviewing {
@@ -878,11 +879,7 @@
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
         
-        
-        .status-pending {
-            background-color: #f6c23e;
-            color: #1f2d3d;
-        }
+    
         
         .status-reviewing {
             background-color: #36b9cc;

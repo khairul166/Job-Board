@@ -625,19 +625,19 @@ function upload_resume_handler() {
 }
 
 // Enqueue scripts
-add_action('wp_enqueue_scripts', function() {
-    wp_enqueue_script(
-        'profile-upload',
-        get_template_directory_uri() . '/js/custom-ajax.js',
-        ['jquery'],
-        null,
-        true
-    );
-    wp_localize_script('profile-upload', 'profile_upload', [
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce'   => wp_create_nonce('profile_nonce')
-    ]);
-});
+// add_action('wp_enqueue_scripts', function() {
+//     wp_enqueue_script(
+//         'profile-upload',
+//         get_template_directory_uri() . '/js/custom-ajax.js',
+//         ['jquery'],
+//         null,
+//         true
+//     );
+//     wp_localize_script('profile-upload', 'profile_upload', [
+//         'ajaxurl' => admin_url('admin-ajax.php'),
+//         'nonce'   => wp_create_nonce('profile_nonce')
+//     ]);
+// });
 
 // Register AJAX handlers
 add_action('wp_ajax_upload_profile_picture_handler', 'upload_profile_picture_handler');
@@ -853,6 +853,131 @@ add_action('wp_ajax_reject_applicant', 'ajax_reject_applicant');
 add_action('wp_ajax_download_cv', 'ajax_download_cv');
 add_action('wp_ajax_get_cv_details', 'ajax_get_cv_details');
 
+// function ajax_shortlist_applicant() {
+//     // Debug log
+//     error_log('AJAX shortlist_applicant called');
+//     error_log('POST data: ' . print_r($_POST, true));
+    
+//     // Verify nonce
+//     check_ajax_referer('job_applications_nonce', 'nonce');
+    
+//     // Check user permissions
+//     if (!current_user_can('manage_options')) {
+//         wp_send_json_error('You do not have sufficient permissions to access this page.');
+//     }
+    
+//     $applicant_id = isset($_POST['applicant_id']) ? intval($_POST['applicant_id']) : 0;
+//     error_log('Applicant ID: ' . $applicant_id);
+    
+//     if (!$applicant_id) {
+//         wp_send_json_error('Invalid applicant ID');
+//     }
+    
+//     global $wpdb;
+//     $table = $wpdb->prefix . 'job_applications';
+    
+//     // Check if the application exists
+//     $application = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $applicant_id));
+//     if (!$application) {
+//         wp_send_json_error('Application not found');
+//     }
+    
+//     // Update application status
+//     $result = $wpdb->update(
+//         $table,
+//         array('status' => 'shortlisted'),
+//         array('id' => $applicant_id),
+//         array('%s'),
+//         array('%d')
+//     );
+    
+//     if ($result === false) {
+//         wp_send_json_error('Database error: ' . $wpdb->last_error);
+//     }
+    
+//     wp_send_json_success('Applicant shortlisted successfully');
+// }
+
+// // Function to reject applicant
+// function ajax_reject_applicant() {
+//     // Verify nonce
+//     check_ajax_referer('job_applications_nonce', 'nonce');
+    
+//     // Check user permissions
+//     if (!current_user_can('manage_options')) {
+//         wp_send_json_error('You do not have sufficient permissions to access this page.');
+//     }
+    
+//     $applicant_id = isset($_POST['applicant_id']) ? intval($_POST['applicant_id']) : 0;
+    
+//     if (!$applicant_id) {
+//         wp_send_json_error('Invalid applicant ID');
+//     }
+    
+//     global $wpdb;
+//     $table = $wpdb->prefix . 'job_applications';
+    
+//     // Check if the application exists
+//     $application = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $applicant_id));
+//     if (!$application) {
+//         wp_send_json_error('Application not found');
+//     }
+    
+//     // Update application status
+//     $result = $wpdb->update(
+//         $table,
+//         array('status' => 'rejected'),
+//         array('id' => $applicant_id),
+//         array('%s'),
+//         array('%d')
+//     );
+    
+//     if ($result === false) {
+//         wp_send_json_error('Database error: ' . $wpdb->last_error);
+//     }
+    
+//     wp_send_json_success('Applicant rejected successfully');
+// }
+function add_user_notification($user_id, $message, $type, $related_item_id = null) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'user_notifications';
+    
+    // Debug logging
+    error_log('Attempting to add notification:');
+    error_log('User ID: ' . $user_id);
+    error_log('Message: ' . $message);
+    error_log('Type: ' . $type);
+    error_log('Related Item ID: ' . ($related_item_id ? $related_item_id : 'NULL'));
+    
+    // Check if table exists
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+    if (!$table_exists) {
+        error_log('Notification table does not exist: ' . $table_name);
+        return false;
+    }
+    
+    $data = array(
+        'user_id' => $user_id,
+        'message' => $message,
+        'type' => $type,
+        'related_item_id' => $related_item_id
+    );
+    
+    $format = array('%d', '%s', '%s', '%d');
+    
+    $result = $wpdb->insert($table_name, $data, $format);
+    
+    if ($result === false) {
+        error_log('Failed to insert notification: ' . $wpdb->last_error);
+        return false;
+    } else {
+        error_log('Notification inserted successfully with ID: ' . $wpdb->insert_id);
+        return $wpdb->insert_id;
+    }
+}
+
+
 function ajax_shortlist_applicant() {
     // Debug log
     error_log('AJAX shortlist_applicant called');
@@ -876,8 +1001,8 @@ function ajax_shortlist_applicant() {
     global $wpdb;
     $table = $wpdb->prefix . 'job_applications';
     
-    // Check if the application exists
-    $application = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $applicant_id));
+    // Check if the application exists and get details
+    $application = $wpdb->get_row($wpdb->prepare("SELECT id, user_id, job_id FROM $table WHERE id = %d", $applicant_id));
     if (!$application) {
         wp_send_json_error('Application not found');
     }
@@ -893,6 +1018,26 @@ function ajax_shortlist_applicant() {
     
     if ($result === false) {
         wp_send_json_error('Database error: ' . $wpdb->last_error);
+    }
+    
+    // Create notification for the applicant
+    if ($result) {
+        // Get job title
+        $job_title = get_the_title($application->job_id);
+        
+        // Create notification message
+        $message = sprintf(
+            'Congratulations! Your application for %s has been shortlisted.',
+            $job_title
+        );
+        
+        // Add notification to database
+        add_user_notification(
+            $application->user_id,  // User ID
+            $message,               // Notification message
+            'shortlisted',          // Notification type
+            $applicant_id           // Related item ID (application ID)
+        );
     }
     
     wp_send_json_success('Applicant shortlisted successfully');
@@ -917,8 +1062,8 @@ function ajax_reject_applicant() {
     global $wpdb;
     $table = $wpdb->prefix . 'job_applications';
     
-    // Check if the application exists
-    $application = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $applicant_id));
+    // Check if the application exists and get details
+    $application = $wpdb->get_row($wpdb->prepare("SELECT id, user_id, job_id FROM $table WHERE id = %d", $applicant_id));
     if (!$application) {
         wp_send_json_error('Application not found');
     }
@@ -936,7 +1081,54 @@ function ajax_reject_applicant() {
         wp_send_json_error('Database error: ' . $wpdb->last_error);
     }
     
+    // Create notification for the applicant
+    if ($result) {
+        // Get job title
+        $job_title = get_the_title($application->job_id);
+        
+        // Create notification message
+        $message = sprintf(
+            'We regret to inform you that your application for %s was not successful.',
+            $job_title
+        );
+        
+        // Add notification to database
+        add_user_notification(
+            $application->user_id,  // User ID
+            $message,               // Notification message
+            'rejected',             // Notification type
+            $applicant_id           // Related item ID (application ID)
+        );
+    }
+    
     wp_send_json_success('Applicant rejected successfully');
+}
+
+function create_application_submission_notification($application_id) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application details
+    $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+    
+    if ($application) {
+        // Get job title
+        $job_title = get_the_title($application->job_id);
+        
+        // Create notification message
+        $message = sprintf(
+            'Your application for %s has been submitted successfully.',
+            $job_title
+        );
+        
+        // Add notification to database
+        add_user_notification(
+            $application->user_id,  // User ID
+            $message,               // Notification message
+            'application_submitted', // Notification type
+            $application_id         // Related item ID (application ID)
+        );
+    }
 }
 
 
@@ -16514,4 +16706,380 @@ function generate_resume_html($user_id) {
     $html = ob_get_clean();
     
     return $html;
+}
+
+
+// Bulk Shortlist AJAX Handler
+function ajax_bulk_shortlist() {
+    check_ajax_referer('job_applications_nonce', 'nonce');
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    $application_ids = isset($_POST['application_ids']) ? $_POST['application_ids'] : [];
+    
+    if (empty($application_ids)) {
+        wp_send_json_error('No applications selected');
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    $success_count = 0;
+    $errors = [];
+    
+    foreach ($application_ids as $application_id) {
+        $application_id = intval($application_id);
+        
+        // Update application record
+        $result = $wpdb->update(
+            $table,
+            array('status' => 'shortlisted'),
+            array('id' => $application_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            $success_count++;
+            
+            // Create notification for applicant
+            $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+            
+            if ($application) {
+                $job_title = get_the_title($application->job_id);
+                $message = sprintf('Your application for %s has been shortlisted.', $job_title);
+                
+                add_user_notification(
+                    $application->user_id,
+                    $message,
+                    'shortlisted',
+                    $application_id
+                );
+            }
+        } else {
+            $errors[] = "Failed to update application ID: $application_id";
+        }
+    }
+    
+    if ($success_count > 0) {
+        wp_send_json_success(array(
+            'message' => "$success_count application(s) shortlisted successfully",
+            'errors' => $errors
+        ));
+    } else {
+        wp_send_json_error('Failed to shortlist applications');
+    }
+}
+add_action('wp_ajax_bulk_shortlist', 'ajax_bulk_shortlist');
+
+// Bulk Reject AJAX Handler
+function ajax_bulk_reject() {
+    check_ajax_referer('job_applications_nonce', 'nonce');
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    $application_ids = isset($_POST['application_ids']) ? $_POST['application_ids'] : [];
+    
+    if (empty($application_ids)) {
+        wp_send_json_error('No applications selected');
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    $success_count = 0;
+    $errors = [];
+    
+    foreach ($application_ids as $application_id) {
+        $application_id = intval($application_id);
+        
+        // Update application record
+        $result = $wpdb->update(
+            $table,
+            array('status' => 'rejected'),
+            array('id' => $application_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            $success_count++;
+            
+            // Create notification for applicant
+            $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+            
+            if ($application) {
+                $job_title = get_the_title($application->job_id);
+                $message = sprintf('Your application for %s was not successful.', $job_title);
+                
+                add_user_notification(
+                    $application->user_id,
+                    $message,
+                    'rejected',
+                    $application_id
+                );
+            }
+        } else {
+            $errors[] = "Failed to update application ID: $application_id";
+        }
+    }
+    
+    if ($success_count > 0) {
+        wp_send_json_success(array(
+            'message' => "$success_count application(s) rejected successfully",
+            'errors' => $errors
+        ));
+    } else {
+        wp_send_json_error('Failed to reject applications');
+    }
+}
+add_action('wp_ajax_bulk_reject', 'ajax_bulk_reject');
+
+// Schedule Interview AJAX Handler
+function ajax_schedule_interview() {
+    // Debug logging
+    error_log('AJAX schedule_interview called');
+    error_log('POST data: ' . print_r($_POST, true));
+    
+    // Verify nonce
+    if (!check_ajax_referer('job_applications_nonce', 'nonce', false)) {
+        error_log('Nonce verification failed');
+        wp_send_json_error('Security check failed');
+    }
+    
+    // Check permissions
+    if (!current_user_can('manage_options')) {
+        error_log('Permission denied for user: ' . get_current_user_id());
+        wp_send_json_error('Permission denied');
+    }
+    
+    $application_ids = isset($_POST['application_ids']) ? $_POST['application_ids'] : [];
+    $interview_date = isset($_POST['interview_date']) ? sanitize_text_field($_POST['interview_date']) : '';
+    $interview_location = isset($_POST['interview_location']) ? sanitize_text_field($_POST['interview_location']) : '';
+    
+    error_log('Application IDs: ' . print_r($application_ids, true));
+    error_log('Interview Date: ' . $interview_date);
+    error_log('Interview Location: ' . $interview_location);
+    
+    if (empty($application_ids) || empty($interview_date)) {
+        error_log('Invalid input: application_ids or interview_date is empty');
+        wp_send_json_error('Invalid input');
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Convert datetime-local format to MySQL format
+    $mysql_datetime = date('Y-m-d H:i:s', strtotime($interview_date));
+    error_log('MySQL datetime: ' . $mysql_datetime);
+    
+    $success_count = 0;
+    $errors = [];
+    
+    foreach ($application_ids as $application_id) {
+        $application_id = intval($application_id);
+        error_log('Processing application ID: ' . $application_id);
+        
+        // Update application record
+        $result = $wpdb->update(
+            $table,
+            array(
+                'status' => 'interview_scheduled',
+                'interview_date' => $mysql_datetime,
+                'interview_location' => $interview_location
+            ),
+            array('id' => $application_id),
+            array('%s', '%s', '%s'),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            $error_msg = 'Failed to update application ID: ' . $application_id . ' - ' . $wpdb->last_error;
+            error_log($error_msg);
+            $errors[] = $error_msg;
+        } else {
+            $success_count++;
+            error_log('Successfully updated application ID: ' . $application_id);
+            
+            // Create notification for applicant
+            $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+            
+            if ($application) {
+                $job_title = get_the_title($application->job_id);
+                $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($mysql_datetime));
+                
+                $message = sprintf(
+                    'Your interview for %s has been scheduled on %s at %s.',
+                    $job_title,
+                    $formatted_date,
+                    $interview_location
+                );
+                
+                add_user_notification(
+                    $application->user_id,
+                    $message,
+                    'interview_scheduled',
+                    $application_id
+                );
+                
+                // Send email notification
+                send_interview_email($application_id, $mysql_datetime, $interview_location);
+            }
+        }
+    }
+    
+    if ($success_count > 0) {
+        error_log('Successfully scheduled ' . $success_count . ' interviews');
+        wp_send_json_success(array(
+            'message' => "$success_count interview(s) scheduled successfully",
+            'errors' => $errors,
+            'new_date' => $formatted_date,
+            'new_location' => $interview_location
+        ));
+    } else {
+        error_log('Failed to schedule any interviews');
+        wp_send_json_error('Failed to schedule interviews');
+    }
+}
+add_action('wp_ajax_schedule_interview', 'ajax_schedule_interview');
+
+// Reschedule Interview AJAX Handler
+function ajax_reschedule_interview() {
+    // Debug logging
+    error_log('AJAX reschedule_interview called');
+    error_log('POST data: ' . print_r($_POST, true));
+    
+    // Verify nonce - use the same nonce as in the JavaScript
+    if (!check_ajax_referer('job_applications_nonce', 'nonce', false)) {
+        error_log('Nonce verification failed');
+        wp_send_json_error('Security check failed');
+    }
+    
+    // Check permissions
+    if (!current_user_can('manage_options')) {
+        error_log('Permission denied for user: ' . get_current_user_id());
+        wp_send_json_error('Permission denied');
+    }
+    
+    $application_id = isset($_POST['application_id']) ? intval($_POST['application_id']) : 0;
+    $interview_date = isset($_POST['interview_date']) ? sanitize_text_field($_POST['interview_date']) : '';
+    $interview_location = isset($_POST['interview_location']) ? sanitize_text_field($_POST['interview_location']) : '';
+    
+    error_log('Application ID: ' . $application_id);
+    error_log('Interview Date: ' . $interview_date);
+    error_log('Interview Location: ' . $interview_location);
+    
+    if (!$application_id || empty($interview_date)) {
+        error_log('Invalid input: application_id or interview_date is missing');
+        wp_send_json_error('Invalid input');
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Convert datetime-local format to MySQL format
+    $mysql_datetime = date('Y-m-d H:i:s', strtotime($interview_date));
+    error_log('MySQL datetime: ' . $mysql_datetime);
+    
+    // Update application record
+    $result = $wpdb->update(
+        $table,
+        array(
+            'interview_date' => $mysql_datetime,
+            'interview_location' => $interview_location
+        ),
+        array('id' => $application_id),
+        array('%s', '%s'),
+        array('%d')
+    );
+    
+    if ($result === false) {
+        error_log('Database error: ' . $wpdb->last_error);
+        wp_send_json_error('Database error: ' . $wpdb->last_error);
+    }
+    
+    error_log('Successfully updated application ID: ' . $application_id);
+    
+    // Create notification for applicant
+    $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+    
+    if ($application) {
+        $job_title = get_the_title($application->job_id);
+        $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($mysql_datetime));
+        
+        $message = sprintf(
+            'Your interview for %s has been rescheduled to %s at %s.',
+            $job_title,
+            $formatted_date,
+            $interview_location
+        );
+        
+        add_user_notification(
+            $application->user_id,
+            $message,
+            'interview_rescheduled',
+            $application_id
+        );
+        
+        // Send email notification
+        send_interview_email($application_id, $mysql_datetime, $interview_location, true);
+    }
+    
+    // Return the same format as schedule_interview
+    wp_send_json_success(array(
+        'message' => 'Interview rescheduled successfully',
+        'new_date' => $formatted_date,
+        'new_location' => $interview_location
+    ));
+}
+add_action('wp_ajax_reschedule_interview', 'ajax_reschedule_interview');
+
+// Update the send_interview_email function to handle notes
+function send_interview_email($application_id, $interview_date, $location, $notes = '', $is_reschedule = false) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($interview_date));
+    
+    $subject = $is_reschedule 
+        ? sprintf('Interview Rescheduled for %s', $job_title)
+        : sprintf('Interview Scheduled for %s', $job_title);
+    
+    $message = "Dear " . $application->display_name . ",\n\n";
+    
+    if ($is_reschedule) {
+        $message .= "Your interview for the position of " . $job_title . " has been rescheduled to " . $formatted_date . ".\n\n";
+    } else {
+        $message .= "Your interview for the position of " . $job_title . " has been scheduled on " . $formatted_date . ".\n\n";
+    }
+    
+    $message .= "Location: " . $location . "\n\n";
+    
+    // Add notes to the email if provided
+    if (!empty($notes)) {
+        $message .= "Notes: " . $notes . "\n\n";
+    }
+    
+    $message .= "Please be prepared and on time.\n\n";
+    $message .= "Best regards,\n" . get_bloginfo('name');
+    
+    return wp_mail($application->user_email, $subject, $message);
 }

@@ -43,17 +43,26 @@
             ));
             ?>
             
-            <?php if (is_user_logged_in()) : ?>
+            <?php if (is_user_logged_in()) : 
+                // Get current user ID
+$user_id = get_current_user_id();
+// Get profile picture
+$profile_picture = get_user_meta($user_id, 'profile_picture', true);
+if (empty($profile_picture)) {
+    $profile_picture = get_avatar_url($user_id, array('size' => 150));
+}
+?>
                 <!-- Profile dropdown -->
                 <div class="nav-item dropdown profile-dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown">
-                        <?php echo get_avatar(get_current_user_id(), 32, '', 'Profile', array('class' => 'profile-img')); ?>
+                        <?php //echo get_avatar(get_current_user_id(), 32, '', 'Profile', array('class' => 'profile-img')); ?>
+                        <img src="<?php echo esc_url($profile_picture); ?>" alt="Profile Picture" class="rounded-circle" style="width: 32px; height: 32px;">
                         <span class="d-none d-md-inline ms-2"><?php echo wp_get_current_user()->display_name; ?></span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
                         <li><a class="dropdown-item" href="<?php echo esc_url(get_permalink(get_page_by_path('user-profile'))); ?>">My Profile</a></li>
                         <li><a class="dropdown-item" href="<?php echo esc_url(get_permalink(get_page_by_path('applied-jobs'))); ?>">Applied Jobs</a></li>
-                        <li><a class="dropdown-item" href="<?php echo esc_url(get_permalink(get_page_by_path('notifications'))); ?>">Notifications</a></li>
+                        <li><a class="dropdown-item" href="<?php echo esc_url(get_permalink(get_page_by_path('notification'))); ?>">Notifications</a></li>
                         <li><a class="dropdown-item" href="<?php echo esc_url(get_permalink(get_page_by_path('settings'))); ?>">Settings</a></li>
                         <li><a class="dropdown-item text-danger" href="<?php echo wp_logout_url(home_url()); ?>">Logout</a></li>
                     </ul>
