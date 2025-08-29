@@ -542,7 +542,7 @@
     flex-wrap: wrap;
 }
 
-.job-status, .job-actions, .job-deadline, .job-share {
+.job-status, .job-actions, .job-deadline, .job-share, .bulk-actions {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -691,15 +691,6 @@ color: white;
         background-color: #f8f9fa;
         border-radius: 4px;
         font-size: 13px;
-    }
-    
-    /* Bulk actions */
-    .bulk-actions {
-        margin: 15px 0;
-        padding: 10px;
-        background: #f9f9f9;
-        border: 1px solid #ddd;
-        border-radius: 3px;
     }
     
     /* Checkbox styling */
@@ -919,4 +910,19 @@ color: white;
 .button-secondary:hover {
     background-color: #e6e6e6;
     border-color: #999;
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    vertical-align: text-bottom;
+    border: 0.2em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border .75s linear infinite;
+}
+
+@keyframes spinner-border {
+    to { transform: rotate(360deg); }
 }

@@ -1010,10 +1010,14 @@ function ajax_shortlist_applicant() {
     // Update application status
     $result = $wpdb->update(
         $table,
-        array('status' => 'shortlisted'),
+        array(
+            'status'            => 'shortlisted',
+            'interview_date'    => null,
+            'interview_location'=> null
+        ),
         array('id' => $applicant_id),
         array('%s'),
-        array('%d')
+        array('%d'),
     );
     
     if ($result === false) {
@@ -1038,6 +1042,7 @@ function ajax_shortlist_applicant() {
             'shortlisted',          // Notification type
             $applicant_id           // Related item ID (application ID)
         );
+        send_application_shortlisted_email($applicant_id);
     }
     
     wp_send_json_success('Applicant shortlisted successfully');
@@ -1071,7 +1076,11 @@ function ajax_reject_applicant() {
     // Update application status
     $result = $wpdb->update(
         $table,
-        array('status' => 'rejected'),
+        array(
+            'status'            => 'rejected',
+            'interview_date'    => null,
+            'interview_location'=> null
+        ),
         array('id' => $applicant_id),
         array('%s'),
         array('%d')
@@ -1099,6 +1108,7 @@ function ajax_reject_applicant() {
             'rejected',             // Notification type
             $applicant_id           // Related item ID (application ID)
         );
+        send_application_rejected_email($applicant_id);
     }
     
     wp_send_json_success('Applicant rejected successfully');
@@ -16757,6 +16767,7 @@ function ajax_bulk_shortlist() {
                     'shortlisted',
                     $application_id
                 );
+                //send_interview_email($application_id, $mysql_datetime, $interview_location);
             }
         } else {
             $errors[] = "Failed to update application ID: $application_id";
@@ -16822,6 +16833,7 @@ function ajax_bulk_reject() {
                     'rejected',
                     $application_id
                 );
+                //send_interview_email($application_id, $mysql_datetime, $interview_location);
             }
         } else {
             $errors[] = "Failed to update application ID: $application_id";
@@ -16927,7 +16939,7 @@ function ajax_schedule_interview() {
                 );
                 
                 // Send email notification
-                send_interview_email($application_id, $mysql_datetime, $interview_location);
+                send_interview_scheduled_email($application_id, $notes);
             }
         }
     }
@@ -17026,7 +17038,7 @@ function ajax_reschedule_interview() {
         );
         
         // Send email notification
-        send_interview_email($application_id, $mysql_datetime, $interview_location, true);
+        send_interview_rescheduled_email($application_id, $notes);
     }
     
     // Return the same format as schedule_interview
@@ -17080,6 +17092,7 @@ function send_interview_email($application_id, $interview_date, $location, $note
     
     $message .= "Please be prepared and on time.\n\n";
     $message .= "Best regards,\n" . get_bloginfo('name');
+    error_log('Sending email to: ' . $application->user_email);
     
     return wp_mail($application->user_email, $subject, $message);
 }

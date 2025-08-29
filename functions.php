@@ -851,7 +851,38 @@ function view_job_applications_page() {
         echo '<div class="wrap"><p>' . esc_html__('Invalid Job ID', 'text-domain') . '</p></div>';
         return;
     }
-    
+
+    // Add the interview scheduling modal at the end of the function, before the closing div
+    ?>
+    <!-- Interview Scheduling Modal -->
+    <div id="interview-modal" class="interview-modal" style="display:none;">
+        <div class="interview-modal-content">
+            <div class="interview-modal-header">
+                <h2>Schedule Interview</h2>
+                <span class="interview-modal-close">&times;</span>
+            </div>
+            <div class="interview-modal-body">
+                <input type="hidden" id="application-ids" name="application_ids">
+                <div class="form-group">
+                    <label for="interview-date">Date & Time</label>
+                    <input type="datetime-local" id="interview-date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="interview-location">Location</label>
+                    <input type="text" id="interview-location" class="form-control" placeholder="Office address" required>
+                </div>
+                <div class="form-group">
+                    <label for="interview-notes">Notes (Optional)</label>
+                    <textarea id="interview-notes" class="form-control" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="interview-modal-footer">
+                <button type="button" class="button button-secondary" id="cancel-interview">Cancel</button>
+                <button type="button" class="button button-primary" id="save-interview">Schedule Interview</button>
+            </div>
+        </div>
+    </div>
+   <?php 
     // Pagination setup
     $per_page = 20;
     $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
@@ -1051,6 +1082,15 @@ function view_job_applications_page() {
             <!-- Status Filter -->
             <div class="status-filter-container">
                 <div class="job-info-section">
+                <div class="bulk-actions" style="display: none;">
+                <select id="bulk-action-select">
+                    <option value="">Bulk Actions</option>
+                    <option value="shortlist">Shortlist</option>
+                    <option value="reject">Reject</option>
+                    <option value="schedule">Schedule Interview</option>
+                </select>
+                <button id="do-bulk-action" class="button">Apply</button>
+            </div>
                     <div class="job-status">
                         <span class="status-label">Job Status:</span>
                         <?php
@@ -1161,15 +1201,7 @@ function view_job_applications_page() {
             </div>
             
             <!-- Bulk Actions Bar -->
-            <div class="bulk-actions" style="display: none; margin: 15px 0;">
-                <select id="bulk-action-select">
-                    <option value="">Bulk Actions</option>
-                    <option value="shortlist">Shortlist</option>
-                    <option value="reject">Reject</option>
-                    <option value="schedule">Schedule Interview</option>
-                </select>
-                <button id="do-bulk-action" class="button">Apply</button>
-            </div>
+
             
             <?php if (empty($results)): ?>
                 <p><?php esc_html_e('No applications found with the current filters.', 'text-domain'); ?></p>
@@ -1470,6 +1502,13 @@ function view_job_applications_page() {
                                 </svg>
                                 Reject
                             </button>';
+                        elseif ($status === 'rejected'):
+                            echo '<button class="action-btn btn-reject" data-applicant-id="' . esc_attr($app->id) . '" disabled style="opacity: 0.5;">
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                Rejected
+                            </button>';
                         elseif ($status === 'interview_scheduled'):
                             if ($interview_passed):
                                 echo '<button class="action-btn btn-reschedule" data-applicant-id="' . esc_attr($app->id) . '">
@@ -1546,6 +1585,7 @@ function view_job_applications_page() {
             <?php endif; ?>
         </div>
     </div>
+    
 
     <?php
     echo '</div>';
@@ -1692,4 +1732,383 @@ function mark_all_notifications_read() {
         wp_safe_redirect($_SERVER['REQUEST_URI']);
         exit;
     }
+}
+
+
+
+// Add settings submenu
+function add_job_applications_settings_menu() {
+    add_submenu_page(
+        'edit.php?post_type=job',          // Parent slug
+        'Application Settings',      // Page title
+        'Settings',                  // Menu title
+        'manage_options',            // Capability
+        'job_applications_settings', // Menu slug
+        'job_applications_settings_page' // Callback function
+    );
+}
+add_action('admin_menu', 'add_job_applications_settings_menu');
+
+// Register settings
+function job_applications_register_settings() {
+    register_setting('job_applications_email_settings', 'interview_scheduled_email');
+    register_setting('job_applications_email_settings', 'interview_rescheduled_email');
+    register_setting('job_applications_email_settings', 'application_shortlisted_email');
+    register_setting('job_applications_email_settings', 'application_rejected_email');
+}
+add_action('admin_init', 'job_applications_register_settings');
+
+// Settings page callback with navigation tabs
+function job_applications_settings_page() {
+    // Get the current tab
+    $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'interview-scheduled';
+    
+    ?>
+    <div class="wrap">
+        <h1>Job Application Settings</h1>
+        
+        <?php
+        // Navigation tabs
+        $tabs = array(
+            'interview-scheduled' => 'Interview Scheduled',
+            'interview-rescheduled' => 'Interview Rescheduled',
+            'application-shortlisted' => 'Application Shortlisted',
+            'application-rejected' => 'Application Rejected'
+        );
+        
+        echo '<nav class="nav-tab-wrapper">';
+        foreach ($tabs as $tab_id => $tab_name) {
+            $url = add_query_arg(
+                array(
+                    'page' => 'job_applications_settings',
+                    'tab' => $tab_id
+                ),
+                admin_url('admin.php')
+            );
+            
+            $active_class = ($current_tab === $tab_id) ? 'nav-tab-active' : '';
+            
+            echo '<a href="' . esc_url($url) . '" class="nav-tab ' . esc_attr($active_class) . '">' . esc_html($tab_name) . '</a>';
+        }
+        echo '</nav>';
+        
+        // Display the appropriate tab content
+        switch ($current_tab) {
+            case 'interview-scheduled':
+                ?>
+                <div class="tab-content">
+                    <form method="post" action="options.php">
+                        <?php settings_fields('job_applications_email_settings'); ?>
+                        
+                        <h2>Interview Scheduled Email</h2>
+                        <p>Customize the email sent to applicants when an interview is scheduled.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">Email Body</th>
+                                <td>
+                                    <textarea name="interview_scheduled_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('interview_scheduled_email', get_default_interview_scheduled_email())); ?></textarea>
+                                    <p class="description">Available placeholders: {name}, {job_title}, {interview_date}, {location}, {notes}</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button(); ?>
+                    </form>
+                </div>
+                <?php
+                break;
+                
+            case 'interview-rescheduled':
+                ?>
+                <div class="tab-content">
+                    <form method="post" action="options.php">
+                        <?php settings_fields('job_applications_email_settings'); ?>
+                        
+                        <h2>Interview Rescheduled Email</h2>
+                        <p>Customize the email sent to applicants when an interview is rescheduled.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">Email Body</th>
+                                <td>
+                                    <textarea name="interview_rescheduled_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('interview_rescheduled_email', get_default_interview_rescheduled_email())); ?></textarea>
+                                    <p class="description">Available placeholders: {name}, {job_title}, {interview_date}, {location}, {notes}</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button(); ?>
+                    </form>
+                </div>
+                <?php
+                break;
+                
+            case 'application-shortlisted':
+                ?>
+                <div class="tab-content">
+                    <form method="post" action="options.php">
+                        <?php settings_fields('job_applications_email_settings'); ?>
+                        
+                        <h2>Application Shortlisted Email</h2>
+                        <p>Customize the email sent to applicants when their application is shortlisted.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">Email Body</th>
+                                <td>
+                                    <textarea name="application_shortlisted_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('application_shortlisted_email', get_default_application_shortlisted_email())); ?></textarea>
+                                    <p class="description">Available placeholders: {name}, {job_title}</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button(); ?>
+                    </form>
+                </div>
+                <?php
+                break;
+                
+            case 'application-rejected':
+                ?>
+                <div class="tab-content">
+                    <form method="post" action="options.php">
+                        <?php settings_fields('job_applications_email_settings'); ?>
+                        
+                        <h2>Application Rejected Email</h2>
+                        <p>Customize the email sent to applicants when their application is rejected.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">Email Body</th>
+                                <td>
+                                    <textarea name="application_rejected_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('application_rejected_email', get_default_application_rejected_email())); ?></textarea>
+                                    <p class="description">Available placeholders: {name}, {job_title}</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button(); ?>
+                    </form>
+                </div>
+                <?php
+                break;
+        }
+        ?>
+    </div>
+    
+    <style>
+    .nav-tab-wrapper {
+        margin: 1em 0;
+    }
+    
+    .tab-content {
+        background: #fff;
+        padding: 20px;
+        border: 1px solid #ccd0d4;
+        border-top: none;
+        margin-top: -1px;
+    }
+    </style>
+    <?php
+}
+
+
+// Default email templates
+function get_default_interview_scheduled_email() {
+    return "Dear {name},
+
+Your interview for the position of {job_title} has been scheduled on {interview_date}.
+
+Location: {location}
+
+{notes}
+
+Please be prepared and on time.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+function get_default_interview_rescheduled_email() {
+    return "Dear {name},
+
+Your interview for the position of {job_title} has been rescheduled to {interview_date}.
+
+Location: {location}
+
+{notes}
+
+Please be prepared and on time.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+function get_default_application_shortlisted_email() {
+    return "Dear {name},
+
+Your application for the position of {job_title} has been shortlisted.
+
+We will contact you soon with further details about the next steps.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+function get_default_application_rejected_email() {
+    return "Dear {name},
+
+We regret to inform you that your application for the position of {job_title} was not successful.
+
+We appreciate your interest in our organization and wish you the best in your job search.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+// Send interview scheduled email
+function send_interview_scheduled_email($application_id, $notes = '') {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($application->interview_date));
+    
+    $subject = sprintf('Interview Scheduled for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('interview_scheduled_email', get_default_interview_scheduled_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}', '{interview_date}', '{location}', '{notes}'),
+        array($application->display_name, $job_title, $formatted_date, $application->interview_location, $notes),
+        $email_template
+    );
+    
+    error_log('Sending interview scheduled email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
+}
+
+// Send interview rescheduled email
+function send_interview_rescheduled_email($application_id, $notes = '') {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($application->interview_date));
+    
+    $subject = sprintf('Interview Rescheduled for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('interview_rescheduled_email', get_default_interview_rescheduled_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}', '{interview_date}', '{location}', '{notes}'),
+        array($application->display_name, $job_title, $formatted_date, $application->interview_location, $notes),
+        $email_template
+    );
+    
+    error_log('Sending interview rescheduled email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
+}
+
+// Send application shortlisted email
+function send_application_shortlisted_email($application_id) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    
+    $subject = sprintf('Application Shortlisted for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('application_shortlisted_email', get_default_application_shortlisted_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}'),
+        array($application->display_name, $job_title),
+        $email_template
+    );
+    
+    error_log('Sending shortlisted email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
+}
+
+// Send application rejected email
+function send_application_rejected_email($application_id) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    
+    $subject = sprintf('Application Status for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('application_rejected_email', get_default_application_rejected_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}'),
+        array($application->display_name, $job_title),
+        $email_template
+    );
+    
+    error_log('Sending rejected email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
 }
