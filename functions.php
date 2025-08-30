@@ -843,7 +843,6 @@ function view_job_applications_page() {
     $nonce = wp_create_nonce('job_applications_nonce');
     
     // Enqueue our custom script and pass variables to it
-
     
     global $wpdb;
     $job_id = isset($_GET['job_id']) ? intval($_GET['job_id']) : 0;
@@ -851,7 +850,6 @@ function view_job_applications_page() {
         echo '<div class="wrap"><p>' . esc_html__('Invalid Job ID', 'text-domain') . '</p></div>';
         return;
     }
-
     // Add the interview scheduling modal at the end of the function, before the closing div
     ?>
     <!-- Interview Scheduling Modal -->
@@ -894,6 +892,15 @@ function view_job_applications_page() {
     $highest_education = isset($_GET['highest_education']) ? sanitize_text_field($_GET['highest_education']) : '';
     $experience_years = isset($_GET['experience_years']) ? intval($_GET['experience_years']) : 0;
     $current_status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
+    
+    // New filter values
+    $min_age = isset($_GET['min_age']) ? intval($_GET['min_age']) : '';
+    $max_age = isset($_GET['max_age']) ? intval($_GET['max_age']) : '';
+    $gender = isset($_GET['gender']) ? sanitize_text_field($_GET['gender']) : '';
+    
+    // Get experience range values
+    $min_experience = isset($_GET['min_experience']) ? intval($_GET['min_experience']) : 0;
+    $max_experience = isset($_GET['max_experience']) ? intval($_GET['max_experience']) : 20;
     
     // Get status counts
     $applications_table = $wpdb->prefix . 'job_applications';
@@ -948,6 +955,30 @@ function view_job_applications_page() {
         $prepare_values[] = '%' . $wpdb->esc_like($highest_education) . '%';
     }
     
+    // Add age filter
+    if (!empty($min_age) || !empty($max_age)) {
+        $joins[] = "LEFT JOIN {$usermeta_table} dob ON dob.user_id = ja.user_id AND dob.meta_key = 'date_of_birth'";
+        
+        if (!empty($min_age) && !empty($max_age)) {
+            $where .= " AND TIMESTAMPDIFF(YEAR, dob.meta_value, CURDATE()) BETWEEN %d AND %d";
+            $prepare_values[] = $min_age;
+            $prepare_values[] = $max_age;
+        } elseif (!empty($min_age)) {
+            $where .= " AND TIMESTAMPDIFF(YEAR, dob.meta_value, CURDATE()) >= %d";
+            $prepare_values[] = $min_age;
+        } elseif (!empty($max_age)) {
+            $where .= " AND TIMESTAMPDIFF(YEAR, dob.meta_value, CURDATE()) <= %d";
+            $prepare_values[] = $max_age;
+        }
+    }
+    
+    // Add gender filter
+    if (!empty($gender)) {
+        $joins[] = "LEFT JOIN {$usermeta_table} g ON g.user_id = ja.user_id AND g.meta_key = 'gender'";
+        $where .= " AND g.meta_value = %s";
+        $prepare_values[] = $gender;
+    }
+    
     // Add status filter
     if ($current_status !== 'all') {
         $where .= " AND ja.status = %s";
@@ -957,16 +988,49 @@ function view_job_applications_page() {
     // Combine all joins
     $join_clause = implode(' ', $joins);
     
-    // Get total applications count for pagination
-    $count_query = "SELECT COUNT(DISTINCT ja.id) FROM {$applications_table} ja {$join_clause} {$where}";
-    $total_applications = $wpdb->get_var($wpdb->prepare($count_query, $prepare_values));
+    // Get all application IDs that match the other filters first
+    $query_ids = "SELECT DISTINCT ja.id FROM {$applications_table} ja {$join_clause} {$where}";
+    $all_app_ids = $wpdb->get_col($wpdb->prepare($query_ids, $prepare_values));
+    
+    // Filter by experience in PHP
+    $filtered_app_ids = array();
+    if ($min_experience > 0 || $max_experience < 20) {
+        foreach ($all_app_ids as $app_id) {
+            // Get user ID for this application
+            $user_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT user_id FROM {$applications_table} WHERE id = %d", 
+                $app_id
+            ));
+            
+            if ($user_id) {
+                // Get work experience data
+                $work_experience = get_user_meta($user_id, 'work_experience', true);
+                $total_months = calculate_total_experience_months($work_experience);
+                
+                // Check if experience is within range
+                if ($total_months >= ($min_experience * 12) && $total_months <= ($max_experience * 12)) {
+                    $filtered_app_ids[] = $app_id;
+                }
+            }
+        }
+        $all_app_ids = $filtered_app_ids;
+    }
+    
+    // Now get the total count for pagination
+    $total_applications = count($all_app_ids);
     $total_pages = ceil($total_applications / $per_page);
     
-    // Get applications for current page
-    $query = "SELECT DISTINCT ja.* FROM {$applications_table} ja {$join_clause} {$where} ORDER BY ja.applied_at DESC LIMIT %d OFFSET %d";
-    $prepare_values[] = $per_page;
-    $prepare_values[] = $offset;
-    $results = $wpdb->get_results($wpdb->prepare($query, $prepare_values));
+    // Get the current page of application IDs
+    $paged_app_ids = array_slice($all_app_ids, $offset, $per_page);
+    
+    // Now fetch the full application data for these IDs
+    if (!empty($paged_app_ids)) {
+        $placeholders = implode(',', array_fill(0, count($paged_app_ids), '%d'));
+        $query = "SELECT * FROM {$applications_table} WHERE id IN ($placeholders) ORDER BY applied_at DESC";
+        $results = $wpdb->get_results($wpdb->prepare($query, $paged_app_ids));
+    } else {
+        $results = array();
+    }
     
     $job = get_post($job_id);
     $job_title = $job ? esc_html($job->post_title) : esc_html__('Unknown Job', 'text-domain');
@@ -987,6 +1051,7 @@ function view_job_applications_page() {
     $present_districts = get_present_city_options();
     $permanent_districts = get_birth_place_options();
     $education_levels = get_education_options();
+    $gender_options = array('Male', 'Female', 'Other');
     
     // Build the URL for filters without resetting other parameters
     $base_url = admin_url('admin.php?page=view_job_applications&job_id=' . $job_id);
@@ -1001,6 +1066,11 @@ function view_job_applications_page() {
                 <input type="hidden" name="post_type" value="job">
                 <input type="hidden" name="page" value="view_job_applications">
                 <input type="hidden" name="job_id" value="<?php echo esc_attr($job_id); ?>">
+                
+                <!-- Preserve status parameter -->
+                <?php if (!empty($current_status) && $current_status !== 'all'): ?>
+                    <input type="hidden" name="status" value="<?php echo esc_attr($current_status); ?>">
+                <?php endif; ?>
                 
                 <div class="filter-group">
                     <label for="present_district"><?php _e('Present District', 'text-domain'); ?></label>
@@ -1039,35 +1109,70 @@ function view_job_applications_page() {
                 </div>
                 
                 <div class="filter-group">
-                    <label for="experience_years"><?php _e('Work Experience', 'text-domain'); ?></label>
-                    
-                    <div class="experience-slider-container">
-                        <input type="range" 
-                            id="experience_slider" 
-                            class="experience-slider" 
-                            min="0" 
-                            max="20" 
-                            step="1" 
-                            value="<?php echo esc_attr($experience_years); ?>">
-                        
-                        <div class="slider-labels">
-                            <span>0</span>
-                            <span>5</span>
-                            <span>10</span>
-                            <span>15</span>
-                            <span>20+</span>
+                    <label for="gender"><?php _e('Gender', 'text-domain'); ?></label>
+                    <select name="gender" id="gender">
+                        <option value=""><?php _e('All Genders', 'text-domain'); ?></option>
+                        <?php foreach ($gender_options as $option): ?>
+                            <option value="<?php echo esc_attr($option); ?>" <?php selected($gender, $option); ?>>
+                                <?php echo esc_html($option); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label><?php _e('Age Range', 'text-domain'); ?></label>
+                    <div class="age-range-container">
+                        <div class="age-slider">
+                            <div class="age-slider-track">
+                                <div class="age-slider-range"></div>
+                                <div class="age-slider-thumb" data-thumb="min"></div>
+                                <div class="age-slider-thumb" data-thumb="max"></div>
+                            </div>
+                            <div class="age-slider-labels">
+                                <span>10</span>
+                                <span>20</span>
+                                <span>30</span>
+                                <span>40</span>
+                                <span>50</span>
+                                <span>60</span>
+                                <span>70</span>
+                                <span>80</span>
+                            </div>
                         </div>
-                        
-                        <div class="slider-value-display">
-                            <span id="experience_display"><?php echo esc_html($experience_years); ?> years</span>
+                        <div class="age-range-display">
+                            <div class="age-value-min"><?php echo esc_attr($min_age); ?></div>
+                            <div class="age-value-max"><?php echo esc_attr($max_age); ?></div>
                         </div>
+                        <input type="hidden" id="min_age" name="min_age" value="<?php echo esc_attr($min_age); ?>">
+                        <input type="hidden" id="max_age" name="max_age" value="<?php echo esc_attr($max_age); ?>">
                     </div>
-                    
-                    <!-- Hidden input to store the actual value for form submission -->
-                    <input type="hidden" 
-                        id="experience_years" 
-                        name="experience_years" 
-                        value="<?php echo esc_attr($experience_years); ?>">
+                </div>
+                
+                <div class="filter-group">
+                    <label><?php _e('Work Experience', 'text-domain'); ?></label>
+                    <div class="experience-range-container">
+                        <div class="experience-slider">
+                            <div class="experience-slider-track">
+                                <div class="experience-slider-range"></div>
+                                <div class="experience-slider-thumb" data-thumb="min"></div>
+                                <div class="experience-slider-thumb" data-thumb="max"></div>
+                            </div>
+                            <div class="experience-slider-labels">
+                                <span>0</span>
+                                <span>5</span>
+                                <span>10</span>
+                                <span>15</span>
+                                <span>20+</span>
+                            </div>
+                        </div>
+                        <div class="experience-range-display">
+                            <div class="experience-value-min"><?php echo esc_attr($min_experience); ?> years</div>
+                            <div class="experience-value-max"><?php echo esc_attr($max_experience); ?>+ years</div>
+                        </div>
+                        <input type="hidden" id="min_experience" name="min_experience" value="<?php echo esc_attr($min_experience); ?>">
+                        <input type="hidden" id="max_experience" name="max_experience" value="<?php echo esc_attr($max_experience); ?>">
+                    </div>
                 </div>
                 
                 <div class="filter-actions">
@@ -1082,15 +1187,15 @@ function view_job_applications_page() {
             <!-- Status Filter -->
             <div class="status-filter-container">
                 <div class="job-info-section">
-                <div class="bulk-actions" style="display: none;">
-                <select id="bulk-action-select">
-                    <option value="">Bulk Actions</option>
-                    <option value="shortlist">Shortlist</option>
-                    <option value="reject">Reject</option>
-                    <option value="schedule">Schedule Interview</option>
-                </select>
-                <button id="do-bulk-action" class="button">Apply</button>
-            </div>
+                    <div class="bulk-actions" style="display: none;">
+                        <select id="bulk-action-select">
+                            <option value="">Bulk Actions</option>
+                            <option value="shortlist">Shortlist</option>
+                            <option value="reject">Reject</option>
+                            <option value="schedule">Schedule Interview</option>
+                        </select>
+                        <button id="do-bulk-action" class="button">Apply</button>
+                    </div>
                     <div class="job-status">
                         <span class="status-label">Job Status:</span>
                         <?php
@@ -1176,6 +1281,21 @@ function view_job_applications_page() {
                     <?php if (!empty($experience_years)): ?>
                         <input type="hidden" name="experience_years" value="<?php echo esc_attr($experience_years); ?>">
                     <?php endif; ?>
+                    <?php if (!empty($min_age)): ?>
+                        <input type="hidden" name="min_age" value="<?php echo esc_attr($min_age); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($max_age)): ?>
+                        <input type="hidden" name="max_age" value="<?php echo esc_attr($max_age); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($gender)): ?>
+                        <input type="hidden" name="gender" value="<?php echo esc_attr($gender); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($min_experience)): ?>
+                        <input type="hidden" name="min_experience" value="<?php echo esc_attr($min_experience); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($max_experience)): ?>
+                        <input type="hidden" name="max_experience" value="<?php echo esc_attr($max_experience); ?>">
+                    <?php endif; ?>
                     
                     <div class="filter-group">
                         <label for="status_filter"><?php _e('Application Status', 'text-domain'); ?></label>
@@ -1201,7 +1321,6 @@ function view_job_applications_page() {
             </div>
             
             <!-- Bulk Actions Bar -->
-
             
             <?php if (empty($results)): ?>
                 <p><?php esc_html_e('No applications found with the current filters.', 'text-domain'); ?></p>
@@ -1256,6 +1375,18 @@ function view_job_applications_page() {
                     $experience_entries = get_user_meta($user_id, 'work_experience', true);
                     if (!is_array($experience_entries)) {
                         $experience_entries = array();
+                    }
+                    
+                    // Get additional user meta for new filters
+                    $date_of_birth = get_user_meta($user_id, 'date_of_birth', true);
+                    $gender = get_user_meta($user_id, 'gender', true);
+                    
+                    // Calculate age
+                    $age = '';
+                    if (!empty($date_of_birth)) {
+                        $birth_date = new DateTime($date_of_birth);
+                        $today = new DateTime();
+                        $age = $birth_date->diff($today)->y;
                     }
                     
                     // Calculate total experience
@@ -1340,6 +1471,18 @@ function view_job_applications_page() {
                                 <i class="fa-solid fa-house-user"></i>
                                 <?php echo esc_html($hometown); ?>
                             </div>
+                            <?php if (!empty($age)): ?>
+                            <div class="detail-item">
+                                <i class="fa-solid fa-cake-candles"></i>
+                                <?php echo esc_html($age) ?> years old
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($gender)): ?>
+                            <div class="detail-item">
+                                <i class="fa-solid fa-venus-mars"></i>
+                                <?php echo esc_html($gender); ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         
                         <div class="application-date">Applied: <?php echo esc_html($applied_date); ?></div>
@@ -1562,7 +1705,12 @@ function view_job_applications_page() {
                             'permanent_district' => $user_permanent_district,
                             'highest_education' => $highest_education,
                             'experience_years' => $experience_years,
-                            'status' => $current_status
+                            'min_age' => $min_age,
+                            'max_age' => $max_age,
+                            'gender' => $gender,
+                            'status' => $current_status,
+                            'min_experience' => $min_experience,
+                            'max_experience' => $max_experience
                         )
                     );
                     
@@ -1585,9 +1733,95 @@ function view_job_applications_page() {
             <?php endif; ?>
         </div>
     </div>
-    
-
-    <?php
+        <script>
+    jQuery(document).ready(function($) {
+        // Age slider functionality
+        const ageSlider = document.querySelector('.age-slider');
+        if (ageSlider) {
+            const minThumb = ageSlider.querySelector('[data-thumb="min"]');
+            const maxThumb = ageSlider.querySelector('[data-thumb="max"]');
+            const minInput = document.getElementById('min_age');
+            const maxInput = document.getElementById('max_age');
+            const minDisplay = document.querySelector('.age-value-min');
+            const maxDisplay = document.querySelector('.age-value-max');
+            
+            // Initialize values
+            let minVal = parseInt(minInput.value) || 18;
+            let maxVal = parseInt(maxInput.value) || 65;
+            
+            // Update display
+            minDisplay.textContent = minVal;
+            maxDisplay.textContent = maxVal;
+            
+            // Add event listeners for thumbs
+            minThumb.addEventListener('input', function() {
+                minVal = parseInt(this.value);
+                if (minVal > maxVal) minVal = maxVal;
+                minInput.value = minVal;
+                minDisplay.textContent = minVal;
+                updateSlider();
+            });
+            
+            maxThumb.addEventListener('input', function() {
+                maxVal = parseInt(this.value);
+                if (maxVal < minVal) maxVal = minVal;
+                maxInput.value = maxVal;
+                maxDisplay.textContent = maxVal;
+                updateSlider();
+            });
+            
+            function updateSlider() {
+                // Add your slider update logic here
+            }
+        }
+        
+        // Experience slider functionality
+        const expSlider = document.querySelector('.experience-slider');
+        if (expSlider) {
+            const minThumb = expSlider.querySelector('[data-thumb="min"]');
+            const maxThumb = expSlider.querySelector('[data-thumb="max"]');
+            const minInput = document.getElementById('min_experience');
+            const maxInput = document.getElementById('max_experience');
+            const minDisplay = document.querySelector('.experience-value-min');
+            const maxDisplay = document.querySelector('.experience-value-max');
+            
+            // Initialize values
+            let minVal = parseInt(minInput.value) || 0;
+            let maxVal = parseInt(maxInput.value) || 20;
+            
+            // Update display
+            minDisplay.textContent = minVal + ' years';
+            maxDisplay.textContent = maxVal + '+ years';
+            
+            // Add event listeners for thumbs
+            minThumb.addEventListener('input', function() {
+                minVal = parseInt(this.value);
+                if (minVal > maxVal) minVal = maxVal;
+                minInput.value = minVal;
+                minDisplay.textContent = minVal + ' years';
+                updateSlider();
+            });
+            
+            maxThumb.addEventListener('input', function() {
+                maxVal = parseInt(this.value);
+                if (maxVal < minVal) maxVal = minVal;
+                maxInput.value = maxVal;
+                maxDisplay.textContent = maxVal + '+ years';
+                updateSlider();
+            });
+            
+            function updateSlider() {
+                // Add your slider update logic here
+            }
+        }
+        
+        // Auto-submit status filter when changed
+        $('#status_filter').on('change', function() {
+            $('#statusFilterForm').submit();
+        });
+    });
+    </script>
+        <?php
     echo '</div>';
 }
 // Helper functions to get filter options
@@ -2111,4 +2345,41 @@ function send_application_rejected_email($application_id) {
     
     error_log('Sending rejected email to: ' . $application->user_email);
     return wp_mail($application->user_email, $subject, $message);
+}
+
+// Helper function to calculate total experience in months
+function calculate_total_experience_months($work_experience) {
+    if (!is_array($work_experience)) {
+        $work_experience = maybe_unserialize($work_experience);
+    }
+    
+    if (!is_array($work_experience)) {
+        return 0;
+    }
+    
+    $total_months = 0;
+    foreach ($work_experience as $entry) {
+        if (!isset($entry['start_date']) || empty($entry['start_date'])) {
+            continue;
+        }
+        
+        try {
+            $start_date = new DateTime($entry['start_date']);
+            
+            if (isset($entry['end_date']) && !empty($entry['end_date']) && strtolower($entry['end_date']) !== 'present') {
+                $end_date = new DateTime($entry['end_date']);
+            } else {
+                $end_date = new DateTime(); // current date for ongoing jobs
+            }
+            
+            $interval = $start_date->diff($end_date);
+            $months = $interval->y * 12 + $interval->m;
+            $total_months += $months;
+        } catch (Exception $e) {
+            // Skip invalid dates
+            continue;
+        }
+    }
+    
+    return $total_months;
 }

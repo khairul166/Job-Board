@@ -147,6 +147,8 @@ jQuery(document).ready(function ($) {
         const shortlistBtn = card.querySelector('.btn-shortlist');
         const rejectBtn = card.querySelector('.btn-reject');
         const btnschedule = card.querySelector('.btn-schedule');
+        const btnreschedule = card.querySelector('.btn-reschedule');
+        const interviewinfo = card.querySelector('.interview-info');
 
         // Add loading state
         card.classList.add('loading');
@@ -179,6 +181,12 @@ jQuery(document).ready(function ($) {
                     }
                     if(btnschedule){
                         btnschedule.style.display = 'none';
+                    }
+                    if(btnreschedule){
+                        btnreschedule.style.display = 'none';
+                    }
+                    if(interviewinfo){
+                        interviewinfo.style.display = 'none';
                     }
                     rejectBtn.disabled = true;
                     rejectBtn.style.opacity = '0.5';
@@ -405,30 +413,30 @@ jQuery(document).ready(function ($) {
 
 
 
-jQuery(document).ready(function ($) {
-    // Handle status filter change
-    $('#status_filter').on('change', function () {
-        $('#statusFilterForm').submit();
-    });
+// jQuery(document).ready(function ($) {
+//     // Handle status filter change
+//     $('#status_filter').on('change', function () {
+//         $('#statusFilterForm').submit();
+//     });
 
-    // Update experience years when slider changes
-    $('#experience_slider').on('input', function () {
-        var value = $(this).val();
-        $('#experience_display').text(value + ' years');
-        $('#experience_years').val(value);
-    });
+//     // Update experience years when slider changes
+//     $('#experience_slider').on('input', function () {
+//         var value = $(this).val();
+//         $('#experience_display').text(value + ' years');
+//         $('#experience_years').val(value);
+//     });
 
-    // Filter applications by experience if a value is selected
-    if ($('#experience_years').val() > 0) {
-        var minMonths = parseInt($('#experience_years').val()) * 12;
-        $('.applicant-card').each(function () {
-            var experienceMonths = parseInt($(this).data('experience-months'));
-            if (experienceMonths < minMonths) {
-                $(this).hide();
-            }
-        });
-    }
-});
+//     // Filter applications by experience if a value is selected
+//     if ($('#experience_years').val() > 0) {
+//         var minMonths = parseInt($('#experience_years').val()) * 12;
+//         $('.applicant-card').each(function () {
+//             var experienceMonths = parseInt($(this).data('experience-months'));
+//             if (experienceMonths < minMonths) {
+//                 $(this).hide();
+//             }
+//         });
+//     }
+// });
 
 function copyLink(url) {
     navigator.clipboard.writeText(url).then(function () {
@@ -440,28 +448,28 @@ function copyLink(url) {
 
 
 jQuery(document).ready(function ($) {
-    // Handle status filter change
-    $('#status_filter').on('change', function () {
-        $('#statusFilterForm').submit();
-    });
+    // // Handle status filter change
+    // $('#status_filter').on('change', function () {
+    //     $('#statusFilterForm').submit();
+    // });
 
-    // Update experience years when slider changes
-    $('#experience_slider').on('input', function () {
-        var value = $(this).val();
-        $('#experience_display').text(value + ' years');
-        $('#experience_years').val(value);
-    });
+    // // Update experience years when slider changes
+    // $('#experience_slider').on('input', function () {
+    //     var value = $(this).val();
+    //     $('#experience_display').text(value + ' years');
+    //     $('#experience_years').val(value);
+    // });
 
-    // Filter applications by experience if a value is selected
-    if ($('#experience_years').val() > 0) {
-        var minMonths = parseInt($('#experience_years').val()) * 12;
-        $('.applicant-card').each(function () {
-            var experienceMonths = parseInt($(this).data('experience-months'));
-            if (experienceMonths < minMonths) {
-                $(this).hide();
-            }
-        });
-    }
+    // // Filter applications by experience if a value is selected
+    // if ($('#experience_years').val() > 0) {
+    //     var minMonths = parseInt($('#experience_years').val()) * 12;
+    //     $('.applicant-card').each(function () {
+    //         var experienceMonths = parseInt($(this).data('experience-months'));
+    //         if (experienceMonths < minMonths) {
+    //             $(this).hide();
+    //         }
+    //     });
+    // }
 
     // Handle checkbox selection for bulk actions
     $(".container").on("change", ".application-checkbox", function () {
@@ -472,27 +480,6 @@ jQuery(document).ready(function ($) {
         }
     });
 
-// // Handle bulk action
-// $("#do-bulk-action").on("click", function () {
-//     var action = $("#bulk-action-select").val();
-//     if (!action) return;
-    
-//     var applicationIds = [];
-//     $(".application-checkbox:checked").each(function () {
-//         applicationIds.push($(this).val());
-//     });
-    
-//     if (applicationIds.length === 0) return;
-    
-//     if (action === "schedule") {
-//         // Show modal for bulk scheduling
-//         console.log("Bulk scheduling for applications:", applicationIds);
-//         showInterviewModal(null, null, false, applicationIds.join(","));
-//     } else {
-//         // Perform bulk action (shortlist or reject)
-//         performBulkAction(action, applicationIds);
-//     }
-// });
 
 // Handle bulk action
 $("#do-bulk-action").on("click", function () {
@@ -509,7 +496,7 @@ $("#do-bulk-action").on("click", function () {
     if (action === "schedule") {
         // Show modal for bulk scheduling using the alternative function
         console.log("Bulk scheduling for applications:", applicationIds);
-        showModalAlternative(null, null, false, applicationIds.join(","));
+        showInterviewModal(null, null, false, applicationIds.join(","));
     } else {
         // Perform bulk action (shortlist or reject)
         performBulkAction(action, applicationIds);
@@ -595,7 +582,7 @@ $("#do-bulk-action").on("click", function () {
         });
     }
 
-// Update the showInterviewModal function with more debugging
+// Update the showInterviewModal function to handle both string and number applicationId
 function showInterviewModal(interviewDate, interviewLocation, isReschedule, applicationId) {
     console.log("showInterviewModal called with:", {
         interviewDate: interviewDate,
@@ -606,18 +593,11 @@ function showInterviewModal(interviewDate, interviewLocation, isReschedule, appl
     
     // Check if modal exists
     var $modal = $("#interview-modal");
-    console.log("Modal element found:", $modal.length > 0);
-    
     if ($modal.length === 0) {
         console.error("Interview modal not found in DOM");
         alert("Error: Interview modal not found. Please refresh the page and try again.");
         return;
     }
-    
-    // Log current modal state
-    console.log("Current modal display style:", $modal.css('display'));
-    console.log("Current modal visibility:", $modal.css('visibility'));
-    console.log("Current modal opacity:", $modal.css('opacity'));
     
     // Set the application ID value
     if (applicationId) {
@@ -659,57 +639,212 @@ function showInterviewModal(interviewDate, interviewLocation, isReschedule, appl
     }
     
     // If it's a bulk action, update the title to indicate multiple applications
-    if (applicationId && applicationId.includes(",")) {
-        var count = applicationId.split(",").length;
+    // Convert applicationId to string before checking for commas
+    var applicationIdStr = String(applicationId);
+    if (applicationIdStr.includes(",")) {
+        var count = applicationIdStr.split(",").length;
         $(".interview-modal-header h2").text("Schedule Interview for " + count + " Applicants");
     }
     
-    // Try different ways to show the modal
-    console.log("Attempting to show modal...");
-    
-    // Method 1: Using jQuery show()
-    $modal.show();
-    console.log("After jQuery show(), display style:", $modal.css('display'));
-    
-    // Method 2: If still not visible, try setting CSS directly
-    if ($modal.css('display') === 'none') {
-        console.log("jQuery show() didn't work, trying direct CSS...");
-        $modal.css('display', 'block');
-        console.log("After direct CSS, display style:", $modal.css('display'));
-    }
-    
-    // Method 3: If still not visible, try adding inline style
-    if ($modal.css('display') === 'none') {
-        console.log("Direct CSS didn't work, trying inline style...");
-        $modal.attr('style', 'display: block !important;');
-        console.log("After inline style, display style:", $modal.css('display'));
-    }
-    
-    // Method 4: Check if z-index is the issue
-    console.log("Modal z-index:", $modal.css('z-index'));
-    
-    // Force a reflow to ensure the modal is displayed
-    $modal[0].offsetHeight;
-    
-    console.log("Final modal state:", {
-        display: $modal.css('display'),
-        visibility: $modal.css('visibility'),
-        opacity: $modal.css('opacity'),
-        zIndex: $modal.css('z-index'),
-        position: $modal.css('position')
-    });
-    
-    // Check if there's any overlay or parent element that might be hiding the modal
-    console.log("Parent elements:");
-    $modal.parents().each(function() {
-        console.log("Parent:", this.tagName, "display:", $(this).css('display'), "visibility:", $(this).css('visibility'));
-    });
+    // Use a timeout to ensure the modal is shown
+    setTimeout(function() {
+        $modal.show();
+        console.log("Modal shown with timeout");
+        
+        // Also try to set focus to force the modal to be active
+        $modal.find('#interview-date').focus();
+    }, 10);
 }
 
-// Handle interview form submission
+    // // Handle interview form submission
+    // $(document).on("click", "#save-interview", function (e) {
+    //     e.preventDefault();
+
+    //     var isReschedule = $(this).text() === "Update Interview";
+    //     var applicationIdsValue = $("#application-ids").val();
+    //     var $button = $(this); // Store reference to the button
+    //     var originalButtonText = $button.text(); // Store original button text
+
+    //     // Debug logging
+    //     console.log("Application IDs Value:", applicationIdsValue);
+    //     console.log("Application IDs input exists:", $("#application-ids").length);
+    //     console.log("Nonce:", job_applications_vars.nonce);
+    //     console.log("Is Reschedule:", isReschedule);
+
+    //     // Check if applicationIdsValue is defined and not empty
+    //     if (!applicationIdsValue) {
+    //         alert("Error: Application ID not found");
+    //         return;
+    //     }
+
+    //     // Split the value into an array
+    //     var applicationIds = applicationIdsValue.split(",");
+
+    //     // Validate the form
+    //     var interviewDate = $("#interview-date").val();
+    //     var interviewLocation = $("#interview-location").val();
+
+    //     if (!interviewDate) {
+    //         alert("Please select an interview date and time");
+    //         return;
+    //     }
+
+    //     if (!interviewLocation) {
+    //         alert("Please enter an interview location");
+    //         return;
+    //     }
+
+    //     // Show spinner and disable button
+    //     $button.prop('disabled', true);
+    //     $button.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...');
+
+    //     // Prepare the data for AJAX
+    //     var data = {
+    //         action: isReschedule ? "reschedule_interview" : "schedule_interview",
+    //         application_ids: applicationIds,
+    //         application_id: applicationIds[0], // For reschedule (single)
+    //         interview_date: interviewDate,
+    //         interview_location: interviewLocation,
+    //         interview_notes: $("#interview-notes").val(),
+    //         nonce: job_applications_vars.nonce
+    //     };
+
+    //     // Debug logging
+    //     console.log("Data being sent:", data);
+
+    //     // Send the AJAX request
+    //     $.ajax({
+    //         url: job_applications_vars.ajaxurl,
+    //         type: "POST",
+    //         data: data,
+    //         beforeSend: function (xhr) {
+    //             console.log("Sending AJAX request...");
+    //         },
+    //         success: function (response) {
+    //             console.log("AJAX response:", response);
+    //             if (response.success) {
+    //                 // Hide modal
+    //                 $("#interview-modal").hide();
+
+    //                 // If it's a bulk action, just reload the page
+    //                 if (applicationIds.length > 1) {
+    //                     showMessage('Interviews scheduled successfully for ' + applicationIds.length + ' applicants!', 'success');
+    //                     setTimeout(function () {
+    //                         location.reload();
+    //                     }, 1500);
+    //                 } else {
+    //                     // Get the application card
+    //                     var applicantId = applicationIds[0];
+    //                     var card = $("#applicant-" + applicantId);
+
+    //                     if (card.length) {
+    //                         // Update status badge
+    //                         var statusBadge = card.find('.status-badge');
+    //                         statusBadge.removeClass('status-new status-shortlisted status-rejected');
+    //                         statusBadge.addClass('status-interview_scheduled');
+    //                         statusBadge.text('Interview Scheduled');
+    //                         var btnreschedule = card.find('.btn-reschedule');
+
+    //                         // Update or create interview info
+    //                         var interviewInfo = card.find('.interview-info');
+
+    //                         if (interviewInfo.length) {
+    //                             // Update existing interview info
+    //                             interviewInfo.find('#interview_date').text(response.data.new_date);
+    //                             interviewInfo.find('#location').text(response.data.new_location);
+    //                         } else {
+    //                             // Create new interview info
+    //                             var appDate = card.find('.application-date');
+    //                             if (appDate.length) {
+    //                                 var newInterviewInfo = $('<div class="interview-info"></div>');
+    //                                 newInterviewInfo.html(`
+    //                                 <strong>Interview:</strong> <span id="interview_date">${response.data.new_date}</span><br>
+    //                                 <strong>Location:</strong> <span id="location">${response.data.new_location}</span>
+    //                             `);
+    //                                 appDate.after(newInterviewInfo);
+    //                             }
+    //                         }
+
+    //                         // Update buttons based on interview date
+    //                         var actionsContainer = card.find('.applicant-actions');
+    //                         var scheduleBtn = actionsContainer.find('.btn-schedule');
+
+    //                         // Check if interview date has passed
+    //                         var interviewDateTime = new Date(interviewDate);
+    //                         var currentDateTime = new Date();
+    //                         var interviewPassed = interviewDateTime < currentDateTime;
+    //                         console.log("Interview DateTime:", interviewDateTime);
+    //                         console.log("Current DateTime:", currentDateTime);
+    //                         console.log("Interview Passed:", interviewPassed);
+
+    //                         if (interviewPassed) {
+    //                             // Replace schedule button with reschedule button
+    //                             if (scheduleBtn.length) {
+    //                                 scheduleBtn.removeClass('btn-schedule');
+    //                                 scheduleBtn.addClass('btn-reschedule');
+    //                                 scheduleBtn.prop('disabled', false);
+    //                                 scheduleBtn.html(`
+    //                             <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+    //                                 <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+    //                             </svg>
+    //                             Reschedule
+    //                         `);
+    //                             }
+    //                         } else {
+    //                             // Replace schedule button with disabled scheduled button
+    //                             if (scheduleBtn.length) {
+    //                                 scheduleBtn.removeClass('btn-schedule');
+    //                                 scheduleBtn.prop('disabled', true);
+
+    //                                 // Check if this is a reschedule (second time scheduling)
+    //                                 if (isReschedule) {
+    //                                     // Show "Rescheduled" button for rescheduled interviews
+    //                                     scheduleBtn.html(`
+    //                                     <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+    //                                         <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+    //                                     </svg>
+    //                                     Rescheduled
+    //                                 `);
+    //                                 } else {
+    //                                     // Show "Scheduled" button for initial scheduling
+    //                                     scheduleBtn.html(`
+    //                                     <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+    //                                         <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+    //                                     </svg>
+    //                                     Scheduled
+    //                                 `);
+    //                                 }
+    //                             }
+    //                         }
+    //                     }
+
+    //                     // Show success message
+    //                     showMessage('Interview scheduled successfully!', 'success');
+    //                 }
+    //             } else {
+    //                 alert("Error: " + response.data);
+    //             }
+
+    //             // Reset button state
+    //             $button.prop('disabled', false);
+    //             $button.html(originalButtonText);
+    //         },
+    //         error: function (xhr, status, error) {
+    //             console.log("AJAX Error: " + status + " - " + error);
+    //             console.log("Response text:", xhr.responseText);
+    //             alert("An error occurred. Please try again.");
+
+    //             // Reset button state
+    //             $button.prop('disabled', false);
+    //             $button.html(originalButtonText);
+    //         }
+    //     });
+    // });
+
+
+    // Handle interview form submission
 $(document).on("click", "#save-interview", function (e) {
     e.preventDefault();
-    
     var isReschedule = $(this).text() === "Update Interview";
     var applicationIdsValue = $("#application-ids").val();
     var $button = $(this); // Store reference to the button
@@ -779,7 +914,7 @@ $(document).on("click", "#save-interview", function (e) {
                 // If it's a bulk action, just reload the page
                 if (applicationIds.length > 1) {
                     showMessage('Interviews scheduled successfully for ' + applicationIds.length + ' applicants!', 'success');
-                    setTimeout(function() {
+                    setTimeout(function () {
                         location.reload();
                     }, 1500);
                 } else {
@@ -815,15 +950,18 @@ $(document).on("click", "#save-interview", function (e) {
                         
                         // Update buttons based on interview date
                         var actionsContainer = card.find('.applicant-actions');
-                        var scheduleBtn = actionsContainer.find('.btn-schedule');
+                        var scheduleBtn = actionsContainer.find('.btn-schedule, .btn-reschedule');
                         
                         // Check if interview date has passed
                         var interviewDateTime = new Date(interviewDate);
                         var currentDateTime = new Date();
                         var interviewPassed = interviewDateTime < currentDateTime;
+                        console.log("Interview DateTime:", interviewDateTime);
+                        console.log("Current DateTime:", currentDateTime);
+                        console.log("Interview Passed:", interviewPassed);
                         
                         if (interviewPassed) {
-                            // Replace schedule button with reschedule button
+                            // Replace button with reschedule button
                             if (scheduleBtn.length) {
                                 scheduleBtn.removeClass('btn-schedule');
                                 scheduleBtn.addClass('btn-reschedule');
@@ -836,16 +974,29 @@ $(document).on("click", "#save-interview", function (e) {
                                 `);
                             }
                         } else {
-                            // Replace schedule button with disabled scheduled button
+                            // Replace button with disabled scheduled button
                             if (scheduleBtn.length) {
-                                scheduleBtn.removeClass('btn-schedule');
+                                scheduleBtn.removeClass('btn-schedule btn-reschedule');
                                 scheduleBtn.prop('disabled', true);
-                                scheduleBtn.html(`
-                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
-                                    </svg>
-                                    Scheduled
-                                `);
+                                
+                                // Check if this is a reschedule (second time scheduling)
+                                if (isReschedule) {
+                                    // Show "Rescheduled" button for rescheduled interviews
+                                    scheduleBtn.html(`
+                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                        </svg>
+                                        Rescheduled
+                                    `);
+                                } else {
+                                    // Show "Scheduled" button for initial scheduling
+                                    scheduleBtn.html(`
+                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                        </svg>
+                                        Scheduled
+                                    `);
+                                }
                             }
                         }
                     }
@@ -923,198 +1074,271 @@ $(document).on("click", function (event) {
     }
 });
 
-
-
-
-// Alternative function to show the modal
-function showModalAlternative(interviewDate, interviewLocation, isReschedule, applicationId) {
-    console.log("showModalAlternative called");
-    
-    // Create a simple modal if it doesn't exist
-    if ($("#simple-interview-modal").length === 0) {
-        var modalHtml = `
-            <div id="simple-interview-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 10000; display: none;">
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border-radius: 5px; width: 500px;">
-                    <h2>${isReschedule ? 'Reschedule Interview' : 'Schedule Interview'}</h2>
-                    <input type="hidden" id="simple-application-ids" value="${applicationId || ''}">
-                    <div style="margin-bottom: 15px;">
-                        <label>Date & Time</label>
-                        <input type="datetime-local" id="simple-interview-date" style="width: 100%; padding: 8px;" value="${interviewDate || ''}">
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <label>Location</label>
-                        <input type="text" id="simple-interview-location" style="width: 100%; padding: 8px;" value="${interviewLocation || ''}" placeholder="Office address">
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <label>Notes (Optional)</label>
-                        <textarea id="simple-interview-notes" style="width: 100%; padding: 8px; height: 80px;"></textarea>
-                    </div>
-                    <div style="text-align: right;">
-                        <button id="simple-cancel-modal" style="margin-right: 10px; padding: 8px 15px;">Cancel</button>
-                        <button id="simple-save-interview" style="padding: 8px 15px; background-color: #0073aa; color: white; border: none; border-radius: 3px;">
-                            ${isReschedule ? 'Update Interview' : 'Schedule Interview'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        $('body').append(modalHtml);
-        
-        // Add event handlers
-        $('#simple-cancel-modal').on('click', function() {
-            $('#simple-interview-modal').hide();
-        });
-        
-        $('#simple-save-interview').on('click', function() {
-            // Use the same logic as the original save function
-            var isReschedule = $(this).text() === "Update Interview";
-            var applicationIdsValue = $("#simple-application-ids").val();
-            
-            // Validate and submit
-            if (!applicationIdsValue) {
-                alert("Error: Application ID not found");
-                return;
-            }
-            
-            var interviewDate = $("#simple-interview-date").val();
-            var interviewLocation = $("#simple-interview-location").val();
-            
-            if (!interviewDate || !interviewLocation) {
-                alert("Please fill in all required fields");
-                return;
-            }
-            var applicationIdsValue = $("#application-ids").val();
-                // Split the value into an array
-    var applicationIds = applicationIdsValue.split(",");
-                // Prepare the data for AJAX
-    var data = {
-        action: isReschedule ? "reschedule_interview" : "schedule_interview",
-        application_ids: applicationIds,
-        application_id: applicationIds[0], // For reschedule (single)
-        interview_date: interviewDate,
-        interview_location: interviewLocation,
-        interview_notes: $("#interview-notes").val(),
-        nonce: job_applications_vars.nonce
-    };
-    
-    // Debug logging
-    console.log("Data being sent:", data);
-    
-    // Send the AJAX request
-    $.ajax({
-        url: job_applications_vars.ajaxurl,
-        type: "POST",
-        data: data,
-        beforeSend: function (xhr) {
-            console.log("Sending AJAX request...");
-        },
-        success: function (response) {
-            console.log("AJAX response:", response);
-            if (response.success) {
-                // Hide modal
-                $("#interview-modal").hide();
-                
-                // If it's a bulk action, just reload the page
-                if (applicationIds.length > 1) {
-                    showMessage('Interviews scheduled successfully for ' + applicationIds.length + ' applicants!', 'success');
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    // Get the application card
-                    var applicantId = applicationIds[0];
-                    var card = $("#applicant-" + applicantId);
-                    
-                    if (card.length) {
-                        // Update status badge
-                        var statusBadge = card.find('.status-badge');
-                        statusBadge.removeClass('status-new status-shortlisted status-rejected');
-                        statusBadge.addClass('status-interview_scheduled');
-                        statusBadge.text('Interview Scheduled');
-                        
-                        // Update or create interview info
-                        var interviewInfo = card.find('.interview-info');
-                        if (interviewInfo.length) {
-                            // Update existing interview info
-                            interviewInfo.find('#interview_date').text(response.data.new_date);
-                            interviewInfo.find('#location').text(response.data.new_location);
-                        } else {
-                            // Create new interview info
-                            var appDate = card.find('.application-date');
-                            if (appDate.length) {
-                                var newInterviewInfo = $('<div class="interview-info"></div>');
-                                newInterviewInfo.html(`
-                                    <strong>Interview:</strong> <span id="interview_date">${response.data.new_date}</span><br>
-                                    <strong>Location:</strong> <span id="location">${response.data.new_location}</span>
-                                `);
-                                appDate.after(newInterviewInfo);
-                            }
-                        }
-                        
-                        // Update buttons based on interview date
-                        var actionsContainer = card.find('.applicant-actions');
-                        var scheduleBtn = actionsContainer.find('.btn-schedule');
-                        
-                        // Check if interview date has passed
-                        var interviewDateTime = new Date(interviewDate);
-                        var currentDateTime = new Date();
-                        var interviewPassed = interviewDateTime < currentDateTime;
-                        
-                        if (interviewPassed) {
-                            // Replace schedule button with reschedule button
-                            if (scheduleBtn.length) {
-                                scheduleBtn.removeClass('btn-schedule');
-                                scheduleBtn.addClass('btn-reschedule');
-                                scheduleBtn.prop('disabled', false);
-                                scheduleBtn.html(`
-                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                                    </svg>
-                                    Reschedule
-                                `);
-                            }
-                        } else {
-                            // Replace schedule button with disabled scheduled button
-                            if (scheduleBtn.length) {
-                                scheduleBtn.removeClass('btn-schedule');
-                                scheduleBtn.prop('disabled', true);
-                                scheduleBtn.html(`
-                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
-                                    </svg>
-                                    Scheduled
-                                `);
-                            }
-                        }
-                    }
-                    
-                    // Show success message
-                    showMessage('Interview scheduled successfully!', 'success');
-                }
-            } else {
-                alert("Error: " + response.data);
-            }
-            var $button = $(this); // Store reference to the button
-            // Reset button state
-            $button.prop('disabled', false);
-            $button.html(originalButtonText);
-        },
-        error: function (xhr, status, error) {
-            console.log("AJAX Error: " + status + " - " + error);
-            console.log("Response text:", xhr.responseText);
-            alert("An error occurred. Please try again.");
-            
-            // Reset button state
-            $button.prop('disabled', false);
-            $button.html(originalButtonText);
-        }
-    });
-        });
-    }
-    
-    // Show the modal
-    $('#simple-interview-modal').show();
-    console.log("Simple modal should now be visible");
-}
 });
 
+jQuery(document).ready(function($) {
+            class AgeRangeSlider {
+                constructor() {
+                    this.minAge = 0;
+                    this.maxAge = 80;
+                    this.selectedMin = 0;
+                    this.selectedMax = 80;
+                    
+                    this.$track = $('.age-slider-track');
+                    this.$range = $('.age-slider-range');
+                    this.$thumbMin = $('.age-slider-thumb[data-thumb="min"]');
+                    this.$thumbMax = $('.age-slider-thumb[data-thumb="max"]');
+                    this.$displayMin = $('.age-value-min');
+                    this.$displayMax = $('.age-value-max');
+                    this.$inputMin = $('#min_age');
+                    this.$inputMax = $('#max_age');
+                    
+                    this.trackWidth = 0;
+                    this.isDragging = false;
+                    this.activeThumb = null;
+                    
+                    this.init();
+                }
+                
+                init() {
+                    // Get initial values from inputs
+                    this.selectedMin = parseInt(this.$inputMin.val()) || 0;
+                    this.selectedMax = parseInt(this.$inputMax.val()) || 80;
+                    
+                    // Set initial positions
+                    this.updateSlider();
+                    
+                    // Bind events
+                    this.$thumbMin.on('mousedown touchstart', (e) => this.startDrag(e, 'min'));
+                    this.$thumbMax.on('mousedown touchstart', (e) => this.startDrag(e, 'max'));
+                    $(document).on('mousemove touchmove', (e) => this.onDrag(e));
+                    $(document).on('mouseup touchend', () => this.endDrag());
+                    
+                    // Prevent text selection while dragging
+                    $('.age-slider-thumb').on('selectstart', (e) => e.preventDefault());
+                    
+                    // Handle window resize
+                    $(window).on('resize', () => {
+                        this.trackWidth = this.$track.width();
+                        this.updateSlider();
+                    });
+                }
+                
+                startDrag(e, thumb) {
+                    e.preventDefault();
+                    this.isDragging = true;
+                    this.activeThumb = thumb;
+                    this.trackWidth = this.$track.width();
+                    
+                    // Add visual feedback
+                    $(`.age-slider-thumb[data-thumb="${thumb}"]`).addClass('active');
+                }
+                
+                onDrag(e) {
+                    if (!this.isDragging) return;
+                    
+                    // Handle both mouse and touch events
+                    const clientX = e.type.includes('touch') ? e.originalEvent.touches[0].clientX : e.clientX;
+                    
+                    const trackRect = this.$track[0].getBoundingClientRect();
+                    let position = Math.max(0, Math.min(this.trackWidth, clientX - trackRect.left));
+                    const percentage = position / this.trackWidth;
+                    const value = Math.round(this.minAge + percentage * (this.maxAge - this.minAge));
+                    
+                    if (this.activeThumb === 'min') {
+                        this.selectedMin = Math.min(value, this.selectedMax - 1);
+                    } else {
+                        this.selectedMax = Math.max(value, this.selectedMin + 1);
+                    }
+                    
+                    this.updateSlider();
+                }
+                
+                endDrag() {
+                    if (!this.isDragging) return;
+                    
+                    this.isDragging = false;
+                    this.activeThumb = null;
+                    
+                    // Remove visual feedback
+                    $('.age-slider-thumb').removeClass('active');
+                    
+                    // Update hidden inputs
+                    this.$inputMin.val(this.selectedMin);
+                    this.$inputMax.val(this.selectedMax);
+                }
+                
+                updateSlider() {
+                    // Calculate positions
+                    const minPercent = (this.selectedMin - this.minAge) / (this.maxAge - this.minAge);
+                    const maxPercent = (this.selectedMax - this.minAge) / (this.maxAge - this.minAge);
+                    
+                    // Update thumbs positions (accounting for thumb width)
+                    this.$thumbMin.css('left', `calc(${minPercent * 100}% - 10px)`);
+                    this.$thumbMax.css('left', `calc(${maxPercent * 100}% - 10px)`);
+                    
+                    // Update range background
+                    this.$range.css({
+                        left: `${minPercent * 100}%`,
+                        right: `${100 - (maxPercent * 100)}%`
+                    });
+                    
+                    // Update displays
+                    this.$displayMin.text(this.selectedMin);
+                    this.$displayMax.text(this.selectedMax);
+                }
+            }
+            
+            // Initialize the slider
+            const ageSlider = new AgeRangeSlider();
+            
+            // Reset button functionality
+            $('.btn-reset').on('click', function() {
+                ageSlider.selectedMin = 0;
+                ageSlider.selectedMax = 80;
+                ageSlider.updateSlider();
+                ageSlider.$inputMin.val(0);
+                ageSlider.$inputMax.val(80);
+            });
+            
+            // Apply button functionality
+            $('.btn-apply').on('click', function() {
+                alert(`Filters applied!\nMin Age: ${ageSlider.selectedMin}\nMax Age: ${ageSlider.selectedMax}`);
+            });
+        });
+
+
+
+                document.addEventListener('DOMContentLoaded', function() {
+            class ExperienceRangeSlider {
+                constructor() {
+                    this.minExperience = 0;
+                    this.maxExperience = 20;
+                    this.selectedMin = 0;
+                    this.selectedMax = 20;
+                    
+                    this.$track = document.querySelector('.experience-slider-track');
+                    this.$range = document.querySelector('.experience-slider-range');
+                    this.$thumbMin = document.querySelector('.experience-slider-thumb[data-thumb="min"]');
+                    this.$thumbMax = document.querySelector('.experience-slider-thumb[data-thumb="max"]');
+                    this.$displayMin = document.querySelector('.experience-value-min');
+                    this.$displayMax = document.querySelector('.experience-value-max');
+                    this.$inputMin = document.getElementById('min_experience');
+                    this.$inputMax = document.getElementById('max_experience');
+                    
+                    this.trackWidth = 0;
+                    this.isDragging = false;
+                    this.activeThumb = null;
+                    
+                    this.init();
+                }
+                
+                init() {
+                    // Set initial positions
+                    this.updateSlider();
+                    
+                    // Bind events
+                    this.$thumbMin.addEventListener('mousedown', (e) => this.startDrag(e, 'min'));
+                    this.$thumbMax.addEventListener('mousedown', (e) => this.startDrag(e, 'max'));
+                    document.addEventListener('mousemove', (e) => this.onDrag(e));
+                    document.addEventListener('mouseup', () => this.endDrag());
+                    
+                    // Touch events for mobile
+                    this.$thumbMin.addEventListener('touchstart', (e) => this.startDrag(e, 'min'));
+                    this.$thumbMax.addEventListener('touchstart', (e) => this.startDrag(e, 'max'));
+                    document.addEventListener('touchmove', (e) => this.onDrag(e));
+                    document.addEventListener('touchend', () => this.endDrag());
+                    
+                    // Handle window resize
+                    window.addEventListener('resize', () => {
+                        this.trackWidth = this.$track.offsetWidth;
+                        this.updateSlider();
+                    });
+                }
+                
+                startDrag(e, thumb) {
+                    e.preventDefault();
+                    this.isDragging = true;
+                    this.activeThumb = thumb;
+                    this.trackWidth = this.$track.offsetWidth;
+                    
+                    // Add visual feedback
+                    document.querySelector(`.experience-slider-thumb[data-thumb="${thumb}"]`).classList.add('active');
+                }
+                
+                onDrag(e) {
+                    if (!this.isDragging) return;
+                    
+                    e.preventDefault();
+                    
+                    // Handle both mouse and touch events
+                    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                    
+                    const trackRect = this.$track.getBoundingClientRect();
+                    let position = Math.max(0, Math.min(this.trackWidth, clientX - trackRect.left));
+                    const percentage = position / this.trackWidth;
+                    const value = Math.round(this.minExperience + percentage * (this.maxExperience - this.minExperience));
+                    
+                    if (this.activeThumb === 'min') {
+                        this.selectedMin = Math.min(value, this.selectedMax - 1);
+                    } else {
+                        this.selectedMax = Math.max(value, this.selectedMin + 1);
+                    }
+                    
+                    this.updateSlider();
+                }
+                
+                endDrag() {
+                    if (!this.isDragging) return;
+                    
+                    this.isDragging = false;
+                    this.activeThumb = null;
+                    
+                    // Remove visual feedback
+                    document.querySelectorAll('.experience-slider-thumb').forEach(thumb => {
+                        thumb.classList.remove('active');
+                    });
+                    
+                    // Update hidden inputs
+                    this.$inputMin.value = this.selectedMin;
+                    this.$inputMax.value = this.selectedMax;
+                }
+                
+                updateSlider() {
+                    // Calculate positions
+                    const minPercent = (this.selectedMin - this.minExperience) / (this.maxExperience - this.minExperience);
+                    const maxPercent = (this.selectedMax - this.minExperience) / (this.maxExperience - this.minExperience);
+                    
+                    // Update thumbs positions (accounting for thumb width)
+                    this.$thumbMin.style.left = `calc(${minPercent * 100}% - 11px)`;
+                    this.$thumbMax.style.left = `calc(${maxPercent * 100}% - 11px)`;
+                    
+                    // Update range background
+                    this.$range.style.left = `${minPercent * 100}%`;
+                    this.$range.style.right = `${100 - (maxPercent * 100)}%`;
+                    
+                    // Update displays
+                    this.$displayMin.textContent = this.selectedMin === 20 ? '20+ years' : `${this.selectedMin} years`;
+                    this.$displayMax.textContent = this.selectedMax === 20 ? '20+ years' : `${this.selectedMax} years`;
+                }
+            }
+            
+            // Initialize the slider
+            const experienceSlider = new ExperienceRangeSlider();
+            
+            // Reset button functionality
+            document.querySelector('.btn-reset').addEventListener('click', function() {
+                experienceSlider.selectedMin = 0;
+                experienceSlider.selectedMax = 20;
+                experienceSlider.updateSlider();
+                experienceSlider.$inputMin.value = 0;
+                experienceSlider.$inputMax.value = 20;
+            });
+            
+            // Apply button functionality
+            document.querySelector('.btn-apply').addEventListener('click', function() {
+                const min = experienceSlider.selectedMin;
+                const max = experienceSlider.selectedMax;
+                alert(`Filters applied!\nMinimum Experience: ${min} years\nMaximum Experience: ${max} years`);
+            });
+        });

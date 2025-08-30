@@ -477,7 +477,7 @@
     }
 }
 
-
+/* 
 
 .experience-slider-container {
     margin-top: 10px;
@@ -525,6 +525,113 @@
     font-weight: bold;
     color: #333;
 }
+ */
+
+
+
+.filter-group {
+    margin-top: 25px;
+}
+
+.filter-group label {
+    display: block;
+    margin-top: 15px;
+    font-weight: 600;
+    font-size: 16px;
+    color: #2c3e50;
+}
+
+.experience-range-container {
+    margin-bottom: 15px;
+}
+
+.slider-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 14px;
+    color: #7f8c8d;
+}
+
+.experience-slider {
+    position: relative;
+    width: 100%;
+    margin: 15px 0;
+}
+
+.experience-slider-track {
+    position: relative;
+    height: 6px;
+    background-color: #e0e0e0;
+    border-radius: 3px;
+    width: calc(100% - 20px);
+    margin: 0 auto;
+}
+
+/* .experience-slider-range {
+    position: absolute;
+    height: 100%;
+    background-color: #3498db;
+    border-radius: 3px;
+    left: 0;
+    right: 0;
+} */
+
+/* .experience-slider-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background-color: #2980b9;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 3;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.experience-slider-thumb:hover {
+    background-color: #1c6ea4;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.experience-slider-thumb.active {
+    background-color: #1c6ea4;
+    transform: translateY(-50%) scale(1.2);
+} */
+
+.experience-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #7f8c8d;
+    width: calc(100% - 20px);
+    margin-left: 10px;
+}
+
+.experience-range-display {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 15px;
+}
+
+/* .experience-value-min,
+.experience-value-max {
+    background-color: #ecf0f1;
+    border: 1px solid #dce4e6;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 14px;
+    color: #2c3e50;
+    min-width: 60px;
+    text-align: center;
+    font-weight: 600;
+} */
+
+
 
 
 .status-filter-container {
@@ -926,3 +1033,78 @@ color: white;
 @keyframes spinner-border {
     to { transform: rotate(360deg); }
 }
+
+ .age-range-container {
+            margin-bottom: 15px;
+        }
+
+        .age-slider {
+            position: relative;
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        .age-slider-track {
+            position: relative;
+            height: 6px;
+            background-color: #e0e0e0;
+            border-radius: 3px;
+            width: calc(100% - 20px); /* Account for thumb width */
+            margin: 0 auto; /* Center the track */
+        }
+
+        .age-slider-range, .experience-slider-range {
+            position: absolute;
+            height: 100%;
+            background-color: #3f8942;
+            border-radius: 3px;
+            left: 0;
+            right: 0;
+        }
+
+        .age-slider-thumb, .experience-slider-thumb {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            background-color: #4caf50;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 3;
+        }
+
+        .age-slider-thumb.active {
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .age-slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+            width: calc(100% - 20px); /* Match track width */
+            margin-left: 10px; /* Center with track */
+        }
+
+        .age-range-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .age-value-min,
+        .age-value-max,
+        .experience-value-min,
+.experience-value-max {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 14px;
+            color: #333;
+            min-width: 40px;
+            text-align: center;
+        }
