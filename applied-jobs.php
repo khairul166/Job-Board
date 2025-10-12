@@ -129,8 +129,8 @@ $completeness_percentage = round(($filled_fields / (count($completeness_fields) 
                     <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo esc_attr($completeness_percentage); ?>%" aria-valuenow="<?php echo esc_attr($completeness_percentage); ?>" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
                 <div class="d-grid gap-2">
-                    <button class="btn btn-outline-primary resume_upload-btn" style="display:<?php if (!empty($resume_file)) : echo 'none'; else: echo 'block'; endif;?>"  data-bs-toggle="modal" data-bs-target="#resumeUploadModal">Upload Resume</button>
-                    <a class="btn btn-outline-primary" href="<?php echo esc_url(get_permalink(get_page_by_path('resume'))); ?>"><i class="fas fa-eye me-1"></i> View Public Profile</a>
+                    <button class="btn btn-outline-success resume_upload-btn" style="display:<?php if (!empty($resume_file)) : echo 'none'; else: echo 'block'; endif;?>"  data-bs-toggle="modal" data-bs-target="#resumeUploadModal">Upload Resume</button>
+                    <a class="btn btn-outline-success" href="<?php echo esc_url(get_permalink(get_page_by_path('resume'))); ?>" target="_blank"><i class="fas fa-eye me-1"></i> View Public Profile</a>
                 </div>
             </div>
         </div>
@@ -292,7 +292,7 @@ $completeness_percentage = round(($filled_fields / (count($completeness_fields) 
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Upload Resume</button>
+                    <button type="submit" class="btn btn-success">Upload Resume</button>
                 </div>
             </form>
         </div>
@@ -320,7 +320,7 @@ $completeness_percentage = round(($filled_fields / (count($completeness_fields) 
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Upload Picture</button>
+                    <button type="submit" class="btn btn-success">Upload Picture</button>
                 </div>
             </form>
         </div>

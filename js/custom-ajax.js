@@ -1,6 +1,9 @@
 function sendAjaxRequest(action, method, data, successCallback, errorCallback) {
+    const ajaxUrl = window.ajax_common_vars?.ajaxurl || ajaxurl;
+    const nonce = window.ajax_common_vars?.profile_nonce || profile_nonce;
+
     const xhr = new XMLHttpRequest();
-    xhr.open(method, ajaxurl, true);
+    xhr.open(method, ajaxUrl, true);
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
@@ -28,7 +31,7 @@ function sendAjaxRequest(action, method, data, successCallback, errorCallback) {
 
     // Add action and nonce to data
     data.action = action;
-    data.nonce = profile_nonce;
+    data.nonce = nonce;
 
     // Convert data object to URL-encoded string
     const formData = new URLSearchParams();
@@ -41,48 +44,64 @@ function sendAjaxRequest(action, method, data, successCallback, errorCallback) {
     xhr.send(formData.toString());
 }
 
-// File upload AJAX function
-// function sendFileUploadRequest(action, formData, successCallback, errorCallback) {
-//     const xhr = new XMLHttpRequest();
-//     xhr.open('POST', ajaxurl, true);
-//     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
+// function sendAjaxRequest(action, method, data, successCallback, errorCallback) {
+//     const ajaxUrl = ajax_common_vars?.ajaxurl || '<?php echo admin_url("admin-ajax.php"); ?>';
+//     const xhr = new XMLHttpRequest();
+//     xhr.open(method, ajaxUrl, true);
+//     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+//     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    
 //     xhr.onreadystatechange = function () {
 //         if (xhr.readyState === 4) {
 //             if (xhr.status === 200) {
 //                 try {
 //                     const response = JSON.parse(xhr.responseText);
+//                     console.log('AJAX response:', response); // Debug log
 //                     if (response.success) {
 //                         if (successCallback) successCallback(response);
 //                     } else {
-//                         if (errorCallback) errorCallback(response.message);
-//                         else alert(response.message);
+//                         if (errorCallback) errorCallback(response.data || response.message);
+//                         else alert(response.data || response.message);
 //                     }
 //                 } catch (e) {
+//                     console.error('AJAX response parsing error:', e); // Debug log
 //                     if (errorCallback) errorCallback('Invalid server response');
 //                     else alert('Invalid server response');
 //                 }
 //             } else {
+//                 console.error('AJAX request failed with status:', xhr.status); // Debug log
 //                 if (errorCallback) errorCallback('Request failed with status: ' + xhr.status);
 //                 else alert('Request failed with status: ' + xhr.status);
 //             }
 //         }
 //     };
-
-//     // Add action and nonce to formData
-//     formData.append('action', action);
-//     formData.append('nonce', profile_nonce);
-
-//     xhr.send(formData);
+    
+//     // Add action and nonce
+//     data.action = action;
+//     data.nonce = ajax_common_vars.profile_nonce;
+    
+//     // Convert to URL-encoded string
+//     const formData = new URLSearchParams();
+//     for (const key in data) {
+//         if (data.hasOwnProperty(key)) {
+//             formData.append(key, data[key]);
+//         }
+//     }
+    
+//     console.log('Sending AJAX request:', {
+//         action: action,
+//         data: data
+//     });
+    
+//     xhr.send(formData.toString());
 // }
 
-// File upload AJAX function - Use global ajaxurl
-function sendFileUploadRequest(action, formData, successCallback, errorCallback, nonce) {
-    // Use the globally available ajaxurl from ajax_common_vars
+// Updated sendFileUploadRequest function
+function sendFileUploadRequest(action, formData, successCallback, errorCallback) {
     const ajaxUrl = ajax_common_vars?.ajaxurl || '<?php echo admin_url("admin-ajax.php"); ?>';
-
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', ajaxUrl, true); // Use the resolved URL
+    xhr.open('POST', ajaxUrl, true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
     xhr.onreadystatechange = function () {
@@ -93,8 +112,8 @@ function sendFileUploadRequest(action, formData, successCallback, errorCallback,
                     if (response.success) {
                         if (successCallback) successCallback(response);
                     } else {
-                        if (errorCallback) errorCallback(response.message);
-                        else alert(response.message);
+                        if (errorCallback) errorCallback(response.data || response.message);
+                        else alert(response.data || response.message);
                     }
                 } catch (e) {
                     if (errorCallback) errorCallback('Invalid server response');
@@ -108,11 +127,9 @@ function sendFileUploadRequest(action, formData, successCallback, errorCallback,
     };
 
     formData.append('action', action);
-    formData.append('nonce', nonce);
-
+    // Nonce is already included in FormData from the form handler
     xhr.send(formData);
 }
-
 
 // Helper function to show success messages
 function showSuccessMessage(message) {
@@ -164,6 +181,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const aboutText = aboutMeTextarea.value;
+            console.log('Submitting About Me:', aboutText);
+            const submitButton = aboutMeForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
             sendAjaxRequest(
                 'update_about_me',
@@ -193,171 +214,420 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 
-    // Personal Information AJAX
-    let contactNumberInstance, altContactInstance;
 
-    // Initialize intlTelInput when modal is shown
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the modal element first
-        const editPersonalInfoModal = document.getElementById('editPersonalInfoModal');
-
-        // Only attach event listener if modal exists
-        if (editPersonalInfoModal) {
-            editPersonalInfoModal.addEventListener('show.bs.modal', function () {
-                setTimeout(function () {
-                    // Initialize Contact Number input
-                    const contactNumberInput = document.getElementById('contactNumber');
-                    if (contactNumberInput && !contactNumberInstance) {
-                        contactNumberInstance = window.intlTelInput(contactNumberInput, {
-                            initialCountry: "bd",
-                            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
-                            separateDialCode: true,
-                            formatOnDisplay: true,
-                            nationalMode: false
-                        });
-                    }
-
-                    // Initialize Alternative Contact Number input
-                    const altContactInput = document.getElementById('altContact');
-                    if (altContactInput && !altContactInstance) {
-                        altContactInstance = window.intlTelInput(altContactInput, {
-                            initialCountry: "bd",
-                            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
-                            separateDialCode: true,
-                            formatOnDisplay: true,
-                            nationalMode: false
-                        });
-                    }
-                }, 100);
-            });
-        } else {
-            // console.error('Edit Personal Info Modal not found');
-        }
-    });
-
-    document.addEventListener('DOMContentLoaded', function () {
-        // Function to handle form submission
-        function handlePersonalInfoSubmit(e) {
-            e.preventDefault();
-            const form = e.target;
-
-            // Get all form data
-            const formData = {
-                fullName: form.fullName.value,
-                fatherName: form.fatherName.value,
-                motherName: form.motherName.value,
-                dob: form.dob.value,
-                gender: form.gender.value,
-                bloodGroup: form.bloodGroup.value,
-                nationality: form.nationality.value,
-                birthCountry: form.birthCountry.value,
-                contactNumber: contactNumberInstance ? contactNumberInstance.getNumber() : '',
-                altContact: altContactInstance ? altContactInstance.getNumber() : '',
-                email: form.email.value,
-                presentAddress: form.presentAddress.value,
-                permanentAddress: form.permanentAddress.value,
-                presentcity: form.presentcity.value,
-                placeofbirth: form.placeofbirth.value,
-            };
-
-            sendAjaxRequest(
-                'update_personal_info',
-                'POST',
-                formData,
-                function (response) {
-                    updatePersonalInfoDisplay(formData);
-                    const modalElement = document.getElementById('editPersonalInfoModal');
-                    if (modalElement) {
-                        const modal = bootstrap.Modal.getInstance(modalElement);
-                        if (modal) modal.hide();
-                    }
-                    showSuccessMessage('Personal information updated successfully!');
-                },
-                function (error) {
-                    alert('Error updating personal information: ' + error);
+    // Initialize modal functionality
+    const editPersonalInfoModal = document.getElementById('editPersonalInfoModal');
+    if (editPersonalInfoModal) {
+        let contactNumberInstance, altContactInstance;
+        
+        // Initialize intlTelInput when modal is shown
+        editPersonalInfoModal.addEventListener('shown.bs.modal', function () {
+            setTimeout(function () {
+                // Initialize Contact Number input
+                const contactNumberInput = document.getElementById('contactNumber');
+                if (contactNumberInput && !contactNumberInstance) {
+                    contactNumberInstance = window.intlTelInput(contactNumberInput, {
+                        initialCountry: "bd",
+                        utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+                        separateDialCode: true,
+                        formatOnDisplay: true,
+                        nationalMode: false
+                    });
                 }
-            );
+                
+                // Initialize Alternative Contact Number input
+                const altContactInput = document.getElementById('altContact');
+                if (altContactInput && !altContactInstance) {
+                    altContactInstance = window.intlTelInput(altContactInput, {
+                        initialCountry: "bd",
+                        utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+                        separateDialCode: true,
+                        formatOnDisplay: true,
+                        nationalMode: false
+                    });
+                }
+                
+                // Check if bangladeshData is available
+                if (typeof bangladeshData === 'undefined') {
+                    console.error('bangladeshData is not loaded. Make sure address.js is included.');
+                    return;
+                }
+                
+                // Populate divisions for both present and permanent address
+                populateDivisions('division');
+                populateDivisions('permanent_division');
+                
+                // Set selected values if they exist
+                if (addressData.present_division) {
+                    document.getElementById('division').value = addressData.present_division;
+                    populateDistricts('division', 'district');
+                    
+                    if (addressData.present_district) {
+                        // Wait for districts to populate, then set value
+                        setTimeout(function() {
+                            document.getElementById('district').value = addressData.present_district;
+                            populateUpazilas('district', 'upazila');
+                            
+                            if (addressData.present_upazila) {
+                                // Wait for upazilas to populate, then set value
+                                setTimeout(function() {
+                                    document.getElementById('upazila').value = addressData.present_upazila;
+                                }, 100);
+                            }
+                        }, 100);
+                    }
+                }
+                
+                if (addressData.permanent_division) {
+                    document.getElementById('permanent_division').value = addressData.permanent_division;
+                    populateDistricts('permanent_division', 'permanent_district');
+                    
+                    if (addressData.permanent_district) {
+                        setTimeout(function() {
+                            document.getElementById('permanent_district').value = addressData.permanent_district;
+                            populateUpazilas('permanent_district', 'permanent_upazila');
+                            
+                            if (addressData.permanent_upazila) {
+                                setTimeout(function() {
+                                    document.getElementById('permanent_upazila').value = addressData.permanent_upazila;
+                                }, 100);
+                            }
+                        }, 100);
+                    }
+                }
+                
+                // Check if permanent address is the same as present address
+                const isSameAddress = (
+                    addressData.present_division === addressData.permanent_division &&
+                    addressData.present_district === addressData.permanent_district &&
+                    addressData.present_upazila === addressData.permanent_upazila
+                );
+                
+                // Set the checkbox state
+                document.getElementById('sameAsPresent').checked = isSameAddress;
+                
+                // Show/hide permanent address fields based on checkbox state
+                const permanentAddressFields = document.getElementById('permanentAddressFields');
+                if (isSameAddress) {
+                    permanentAddressFields.style.display = 'none';
+                } else {
+                    permanentAddressFields.style.display = 'flex';
+                }
+            }, 100);
+        });
+        
+        // Handle "Same as Present Address" checkbox
+        const sameAsPresentCheckbox = document.getElementById('sameAsPresent');
+        if (sameAsPresentCheckbox) {
+            sameAsPresentCheckbox.addEventListener('change', function() {
+                const permanentAddressFields = document.getElementById('permanentAddressFields');
+                if (this.checked) {
+                    // Hide permanent address fields
+                    permanentAddressFields.style.display = 'none';
+                    
+                    // Copy present address to permanent address
+                    document.querySelector('textarea[name="permanentaddressline"]').value = document.querySelector('textarea[name="presentaddressline"]').value;
+                    document.getElementById('permanent_division').value = document.getElementById('division').value;
+                    document.getElementById('permanent_district').value = document.getElementById('district').value;
+                    document.getElementById('permanent_upazila').value = document.getElementById('upazila').value;
+                    document.getElementById('permanent_postcode').value = document.getElementById('presentpostcode').value;
+                } else {
+                    // Show permanent address fields
+                    permanentAddressFields.style.display = 'flex';
+                }
+            });
         }
-
-        // Try to attach directly to the form if it exists
+        
+        // Add event listeners for division dropdowns
+        const divisionSelect = document.getElementById('division');
+        if (divisionSelect) {
+            divisionSelect.addEventListener('change', function() {
+                populateDistricts('division', 'district');
+            });
+        }
+        
+        const permanentDivisionSelect = document.getElementById('permanent_division');
+        if (permanentDivisionSelect) {
+            permanentDivisionSelect.addEventListener('change', function() {
+                populateDistricts('permanent_division', 'permanent_district');
+            });
+        }
+        
+        // Add event listeners for district dropdowns
+        const districtSelect = document.getElementById('district');
+        if (districtSelect) {
+            districtSelect.addEventListener('change', function() {
+                populateUpazilas('district', 'upazila');
+            });
+        }
+        
+        const permanentDistrictSelect = document.getElementById('permanent_district');
+        if (permanentDistrictSelect) {
+            permanentDistrictSelect.addEventListener('change', function() {
+                populateUpazilas('permanent_district', 'permanent_upazila');
+            });
+        }
+        
+        // Handle form submission
         const personalInfoForm = document.getElementById('personalInfoForm');
         if (personalInfoForm) {
-            personalInfoForm.addEventListener('submit', handlePersonalInfoSubmit);
-        } else {
-            console.error('Personal Info Form not found');
-
-            // Use event delegation as a fallback for dynamically loaded forms
-            document.addEventListener('submit', function (e) {
-                if (e.target && e.target.id === 'personalInfoForm') {
-                    handlePersonalInfoSubmit(e);
+            document.getElementById('personalInfoForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                
+                // Validate required fields
+                const requiredFields = ['fullName', 'fatherName', 'motherName', 'dob', 'gender', 'division', 'district', 'upazila'];
+                for (const field of requiredFields) {
+                    const element = this.elements[field];
+                    if (!element.value.trim()) {
+                        alert(`Please fill in the ${element.previousElementSibling.textContent} field`);
+                        element.focus();
+                        return;
+                    }
                 }
+                
+                // Check if "Same as Present Address" is checked
+                const sameAsPresent = document.getElementById('sameAsPresent').checked;
+                
+                // Get all form data
+                const formData = {
+                    fullName: this.fullName.value,
+                    fatherName: this.fatherName.value,
+                    motherName: this.motherName.value,
+                    dob: this.dob.value,
+                    gender: this.gender.value,
+                    bloodGroup: this.bloodGroup.value,
+                    nationality: this.nationality.value,
+                    birthCountry: this.birthCountry.value,
+                    contactNumber: contactNumberInstance ? contactNumberInstance.getNumber() : '',
+                    altContact: altContactInstance ? altContactInstance.getNumber() : '',
+                    email: this.email.value,
+                    presentaddressline: this.presentaddressline.value,
+                    permanentaddressline: sameAsPresent ? this.presentaddressline.value : this.permanentaddressline.value,
+                    placeofbirth: this.placeofbirth.value,
+                    // Address fields
+                    division: this.division.value,
+                    district: this.district.value,
+                    upazila: this.upazila.value,
+                    presentpostcode: this.presentpostcode.value,
+                    permanent_division: sameAsPresent ? this.division.value : this.permanent_division.value,
+                    permanent_district: sameAsPresent ? this.district.value : this.permanent_district.value,
+                    permanent_upazila: sameAsPresent ? this.upazila.value : this.permanent_upazila.value,
+                    permanent_postcode: sameAsPresent ? this.presentpostcode.value : this.permanent_postcode.value,
+                    sameAsPresent: sameAsPresent,
+                    nonce: addressData.nonce
+                };
+                
+                // Disable submit button to prevent double submission
+                const submitButton = this.querySelector('button[type="submit"]');
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+                
+                // Send AJAX request
+                jQuery.ajax({
+                    url: addressData.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'update_personal_info',
+                        ...formData
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            // Update the display with the new data
+                            updatePersonalInfoDisplay(formData);
+                            
+                            // Re-enable the submit button and reset its text
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = 'Save Changes';
+                            
+                            // Close the modal
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('editPersonalInfoModal'));
+                            modal.hide();
+                            
+                            // Show success message
+                            //alert('Personal information updated successfully!');
+                            showSuccessMessage('Personal information updated successfully!');
+                        } else {
+                            alert('Error updating personal information: ' + response.data);
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = 'Save Changes';
+                        }
+                    },
+                    error: function (error) {
+                        alert('Error updating personal information: ' + error.statusText);
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = 'Save Changes';
+                    }
+                });
             });
         }
-    });
-
-    // Function to update the personal information display
-    function updatePersonalInfoDisplay(data) {
-        // Update each field directly
-        updateField('fullName', data.fullName);
-        updateField('fatherName', data.fatherName);
-        updateField('motherName', data.motherName);
-        updateField('dob', formatDate(data.dob));
-        updateField('gender', data.gender);
-        updateField('bloodGroup', data.bloodGroup);
-        updateField('nationality', data.nationality);
-        updateField('birthCountry', data.birthCountry);
-        updateField('contactNumber', data.contactNumber);
-        updateField('altContact', data.altContact);
-        updateField('email', data.email);
-        updateField('presentAddress', data.presentAddress);
-        updateField('permanentAddress', data.permanentAddress);
-        updateField('presentcity', data.presentcity);
-        updateField('placeofbirth', data.placeofbirth);
     }
-
-    // Helper function to update a field by form field name
-    function updateField(fieldName, value) {
-        // Map form field names to display field indices
-        const fieldMap = {
-            'fullName': { column: 0, index: 0 },
-            'fatherName': { column: 0, index: 1 },
-            'motherName': { column: 0, index: 2 },
-            'dob': { column: 0, index: 3 },
-            'gender': { column: 0, index: 4 },
-            'bloodGroup': { column: 0, index: 5 },
-            'nationality': { column: 0, index: 6 },
-            'birthCountry': { column: 0, index: 7 },
-            'contactNumber': { column: 1, index: 0 },
-            'altContact': { column: 1, index: 1 },
-            'email': { column: 1, index: 2 },
-            'presentAddress': { column: 1, index: 3 },
-            'permanentAddress': { column: 1, index: 4 },
-            'presentcity': { column: 1, index: 5 },
-            'placeofbirth': { column: 1, index: 6 }
-        };
-
-        const fieldInfo = fieldMap[fieldName];
-        if (!fieldInfo) return;
-
-        // Get the column
-        const columns = document.querySelectorAll('.personalinfo-section .col-sm-6');
-        if (fieldInfo.column >= columns.length) return;
-
-        const column = columns[fieldInfo.column];
-
-        // Get all field containers in this column
-        const fieldContainers = column.querySelectorAll('.mb-4');
-        if (fieldInfo.index >= fieldContainers.length) return;
-
-        const container = fieldContainers[fieldInfo.index];
-
-        // Find the p element and update its text
-        const p = container.querySelector('p');
-        if (p) {
-            p.textContent = value;
+    
+    // Function to populate divisions dropdown
+    function populateDivisions(selectId) {
+        const divisionSelect = document.getElementById(selectId);
+        if (!divisionSelect) return;
+        
+        divisionSelect.innerHTML = '<option value="">Select Division</option>';
+        
+        for (const division in bangladeshData.divisions) {
+            const option = document.createElement('option');
+            option.value = division;
+            option.textContent = division;
+            divisionSelect.appendChild(option);
         }
     }
+    
+    // Function to populate districts dropdown based on selected division
+    function populateDistricts(divisionSelectId, districtSelectId) {
+        const divisionSelect = document.getElementById(divisionSelectId);
+        const districtSelect = document.getElementById(districtSelectId);
+        if (!divisionSelect || !districtSelect) return;
+        
+        const selectedDivision = divisionSelect.value;
+        
+        districtSelect.innerHTML = '<option value="">Select District</option>';
+        
+        if (selectedDivision && bangladeshData.divisions[selectedDivision]) {
+            bangladeshData.divisions[selectedDivision].forEach(district => {
+                const option = document.createElement('option');
+                option.value = district;
+                option.textContent = district;
+                districtSelect.appendChild(option);
+            });
+        }
+    }
+    
+    // Function to populate upazilas dropdown based on selected district
+    function populateUpazilas(districtSelectId, upazilaSelectId) {
+        const districtSelect = document.getElementById(districtSelectId);
+        const upazilaSelect = document.getElementById(upazilaSelectId);
+        if (!districtSelect || !upazilaSelect) return;
+        
+        const selectedDistrict = districtSelect.value;
+        
+        upazilaSelect.innerHTML = '<option value="">Select Upazila/City</option>';
+        
+        if (selectedDistrict && bangladeshData.districts[selectedDistrict]) {
+            bangladeshData.districts[selectedDistrict].forEach(upazila => {
+                const option = document.createElement('option');
+                option.value = upazila;
+                option.textContent = upazila;
+                upazilaSelect.appendChild(option);
+            });
+        }
+    }
+    
+// Function to update the personal information display
+function updatePersonalInfoDisplay(data) {
+    console.log(data);
+    // Update each field directly
+    updateField('fullName', data.fullName);
+    updateField('fatherName', data.fatherName);
+    updateField('motherName', data.motherName);
+    updateField('dob', formatDate(data.dob));
+    updateField('gender', data.gender);
+    updateField('bloodGroup', data.bloodGroup);
+    updateField('nationality', data.nationality);
+    updateField('birthCountry', data.birthCountry);
+    updateField('contactNumber', data.contactNumber);
+    updateField('altContact', data.altContact);
+    updateField('email', data.email);
+    
+    // Create full address strings
+    const presentFullAddress = createFullAddressString(
+        data.presentaddressline,
+        data.upazila || '',
+        data.district || '',
+        data.division || '',
+        data.presentpostcode || ''
+    );
+    
+    const permanentFullAddress = data.sameAsPresent ? presentFullAddress : createFullAddressString(
+        data.permanentaddressline,
+        data.permanent_upazila || '',
+        data.permanent_district || '',
+        data.permanent_division || '',
+        data.permanent_postcode || ''
+    );
+    
+    // Update address fields with full address strings
+    updateField('presentaddressline', presentFullAddress);
+    updateField('permanentaddressline', permanentFullAddress);
+    updateField('placeofbirth', data.placeofbirth);
+    
+    // Don't update individual address components (division, district, upazila) 
+    // because they are not displayed in the frontend
+}
+    
+// Helper function to create full address string
+function createFullAddressString(address, upazila, district, division, postcode) {
+    let fullAddress = '';
+    
+    // Only add components if they exist and are not empty
+    if (address && address.trim() !== '') {
+        fullAddress += address.trim();
+    }
+    if (upazila && upazila.trim() !== '') {
+        fullAddress += (fullAddress ? ', ' : '') + upazila.trim();
+    }
+    if (district && district.trim() !== '') {
+        fullAddress += (fullAddress ? ', ' : '') + district.trim();
+    }
+    if (division && division.trim() !== '') {
+        fullAddress += (fullAddress ? ', ' : '') + division.trim();
+    }
+    if (postcode && postcode.trim() !== '') {
+        fullAddress += (fullAddress ? ' - ' : '') + postcode.trim();
+    }
+    
+    return fullAddress;
+}
+// Helper function to update a field by form field name
+function updateField(fieldName, value) {
+    // Map form field names to display field indices
+    const fieldMap = {
+        'fullName': { column: 0, index: 0 },
+        'fatherName': { column: 0, index: 1 },
+        'motherName': { column: 0, index: 2 },
+        'dob': { column: 0, index: 3 },
+        'gender': { column: 0, index: 4 },
+        'bloodGroup': { column: 0, index: 5 },
+        'nationality': { column: 0, index: 6 },
+        'birthCountry': { column: 0, index: 7 },
+        'contactNumber': { column: 1, index: 0 },
+        'altContact': { column: 1, index: 1 },
+        'email': { column: 1, index: 2 },
+        'presentaddressline': { column: 1, index: 3 },
+        'permanentaddressline': { column: 1, index: 4 },
+        'placeofbirth': { column: 1, index: 5 }
+    };
+    
+    const fieldInfo = fieldMap[fieldName];
+    if (!fieldInfo) return;
+    
+    // Get the column
+    const columns = document.querySelectorAll('.personalinfo-section .col-sm-6');
+    if (fieldInfo.column >= columns.length) return;
+    const column = columns[fieldInfo.column];
+    
+    // Get all field containers in this column
+    const fieldContainers = column.querySelectorAll('.mb-4');
+    if (fieldInfo.index >= fieldContainers.length) return;
+    const container = fieldContainers[fieldInfo.index];
+    
+    // Find the p element and update its text
+    const p = container.querySelector('p');
+    if (p) {
+        p.textContent = value;
+    }
+}
 
+// Helper function to format date
+// function formatDate(dateString) {
+//     if (!dateString) return '';
+//     const date = new Date(dateString);
+//     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+// }
     // Helper function to format date
     function formatDate(dateString) {
         if (!dateString) return '';
@@ -370,71 +640,36 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ============ Education AJAX Start ============//
     // Education AJAX
-    document.addEventListener('DOMContentLoaded', function () {
-        const educationForm = document.getElementById('educationForm');
-
-        // Only proceed if the form exists
-        if (educationForm) {
-            const hiddenIdInput = document.createElement('input');
-            hiddenIdInput.type = 'hidden';
-            hiddenIdInput.id = 'educationId';
-            hiddenIdInput.name = 'educationId';
-            educationForm.appendChild(hiddenIdInput);
-        } else {
-            console.error('Education form not found');
-        }
-    });
+    const educationForm = document.getElementById('educationForm');
+    const hiddenIdInput = document.createElement('input');
+    hiddenIdInput.type = 'hidden';
+    hiddenIdInput.id = 'educationId';
+    hiddenIdInput.name = 'educationId';
+    educationForm.appendChild(hiddenIdInput);
 
     // Generate year options
     const yearSelect = document.querySelector('select[name="passing_year[]"]');
     const currentYear = new Date().getFullYear();
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the year select element
-        const yearSelect = document.getElementById('yearSelect');
-
-        // Only proceed if the select element exists
-        if (yearSelect) {
-            // Get current year
-            const currentYear = new Date().getFullYear();
-
-            // Generate options from current year back 20 years
-            for (let year = currentYear; year >= currentYear - 20; year--) {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year;
-                yearSelect.appendChild(option);
-            }
-        } else {
-            console.error('Year select element not found');
-        }
-    });
+    // Generate options from current year back 20 years
+    for (let year = currentYear; year >= currentYear - 20; year--) {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearSelect.appendChild(option);
+    }
 
     // Handle GPA input visibility
     const resultSelect = document.getElementById('resultSelect');
     const gpaPointsInput = document.getElementById('gpaPoints');
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the result select element
-        const resultSelect = document.getElementById('resultSelect');
-        const gpaPointsInput = document.getElementById('gpaPointsInput');
-
-        // Only attach event listener if elements exist
-        if (resultSelect && gpaPointsInput) {
-            resultSelect.addEventListener('change', function () {
-                if (this.value === 'gpa4' || this.value === 'gpa5') {
-                    gpaPointsInput.classList.remove('d-none');
-                    gpaPointsInput.required = true;
-                } else {
-                    gpaPointsInput.classList.add('d-none');
-                    gpaPointsInput.required = false;
-                }
-            });
+    resultSelect.addEventListener('change', function () {
+        if (this.value === 'gpa4' || this.value === 'gpa5') {
+            gpaPointsInput.classList.remove('d-none');
+            gpaPointsInput.required = true;
         } else {
-            console.error('Required elements not found:', {
-                resultSelect: !!resultSelect,
-                gpaPointsInput: !!gpaPointsInput
-            });
+            gpaPointsInput.classList.add('d-none');
+            gpaPointsInput.required = false;
         }
     });
 
@@ -740,23 +975,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // ================== education ajax end =======================//
 
-
     // Training AJAX
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the training form element
-        const trainingForm = document.getElementById('trainingForm');
-
-        // Only proceed if the form exists
-        if (trainingForm) {
-            const trainingHiddenIdInput = document.createElement('input');
-            trainingHiddenIdInput.type = 'hidden';
-            trainingHiddenIdInput.id = 'trainingId';
-            trainingHiddenIdInput.name = 'trainingId';
-            trainingForm.appendChild(trainingHiddenIdInput);
-        } else {
-            console.error('Training form not found');
-        }
-    });
+    const trainingForm = document.getElementById('trainingForm');
+    const trainingHiddenIdInput = document.createElement('input');
+    trainingHiddenIdInput.type = 'hidden';
+    trainingHiddenIdInput.id = 'trainingId';
+    trainingHiddenIdInput.name = 'trainingId';
+    trainingForm.appendChild(trainingHiddenIdInput);
 
     // Add class to existing training entries (don't change IDs)
     const existingTraining = document.querySelectorAll('.training-section .mb-4.border-bottom');
@@ -832,41 +1057,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 function (response) {
                     console.log('Training AJAX success:', response);
 
-                    // response is the data part of the server response
-                    const newId = response.id || 'training_' + Date.now();
+                    // Ensure response.data exists
+                    if (!response.data) {
+                        console.error('Invalid response structure:', response);
+                        alert('Error updating training: Invalid response structure');
+                        return;
+                    }
+
+                    const newId = response.data.id || 'training_' + Date.now();
+                    const message = response.data.message || 'Training updated successfully!';
 
                     if (trainingId) {
                         console.log('Updating existing training entry with ID:', trainingId);
-                        // Update existing entry
                         updateTrainingEntry(trainingId, title, institution, startYear, endYear, description);
                     } else {
                         console.log('Adding new training entry with ID:', newId);
-                        // Add new entry with the ID from the server
                         addTrainingEntry(newId, title, institution, startYear, endYear, description);
                     }
 
-                    // Reset form and close modal
                     trainingForm.reset();
                     document.getElementById('trainingId').value = '';
                     const modal = bootstrap.Modal.getInstance(document.getElementById('editTrainingModal'));
                     modal.hide();
-                    showSuccessMessage(response.message || 'Training updated successfully!');
+                    showSuccessMessage(message);
 
-                    // Re-enable submit button
                     submitButton.disabled = false;
                     submitButton.innerHTML = 'Save Training';
-
-                    // Reset submission flag
                     isTrainingSubmitting = false;
                 },
                 function (error) {
                     console.error('Training AJAX error:', error);
                     alert('Error updating training: ' + error);
-                    // Re-enable submit button
                     submitButton.disabled = false;
                     submitButton.innerHTML = 'Save Training';
-
-                    // Reset submission flag
                     isTrainingSubmitting = false;
                 }
             );
@@ -898,26 +1121,26 @@ document.addEventListener('DOMContentLoaded', function () {
         const endYearDisplay = new Date(endYear).getFullYear();
 
         trainingEntry.innerHTML = `
-        <div>
-            <h5>${title}</h5>
-            <p class="text-muted mb-1">${institution} • ${startYearDisplay} - ${endYearDisplay}</p>
-            <p>${description}</p>
-        </div>
-        <div class="ms-3 text-nowrap">
-            <button class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="modal" data-bs-target="#editTrainingModal">
-                <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger">
-                <i class="fas fa-trash-alt"></i>
-            </button>
-        </div>
-    `;
+     <div>
+         <h5>${title}</h5>
+         <p class="text-muted mb-1">${institution} • ${startYearDisplay} - ${endYearDisplay}</p>
+         <p>${description}</p>
+     </div>
+     <div class="ms-3 text-nowrap">
+         <button class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="modal" data-bs-target="#editTrainingModal">
+             <i class="fas fa-edit"></i>
+         </button>
+         <button class="btn btn-sm btn-outline-danger">
+             <i class="fas fa-trash-alt"></i>
+         </button>
+     </div>
+ `;
 
         // Add to section
         trainingSection.appendChild(trainingEntry);
     }
 
-    // Function to update existing training entry
+    //Function to update existing training entry
     function updateTrainingEntry(trainingId, title, institution, startYear, endYear, description) {
         const trainingEntry = document.querySelector(`.training-item[data-id="${trainingId}"]`);
 
@@ -927,12 +1150,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Format years for display
-        const startYearDisplay = new Date(startYear).getFullYear();
-        const endYearDisplay = new Date(endYear).getFullYear();
+        const startYearDisplay = formatDateForDisplay(startYear);
+        const endYearDisplay = formatDateForDisplay(endYear);
+        const duration = calculateDuration(startYear, endYear);
+        //  const startYearDisplay = new Date(startYear).getFullYear();
+        //  const endYearDisplay = new Date(endYear).getFullYear();
 
         // Update entry
         trainingEntry.querySelector('h5').textContent = title;
-        trainingEntry.querySelector('.text-muted').textContent = `${institution} • ${startYearDisplay} - ${endYearDisplay}`;
+        trainingEntry.querySelector('.text-muted').textContent =
+            `${institution} • ${startYearDisplay} - ${endYearDisplay} • ${duration}`;
+        //trainingEntry.querySelector('.text-muted').textContent = `${institution} • ${startYearDisplay} - ${endYearDisplay}`;
         trainingEntry.querySelector('p:last-of-type').textContent = description;
     }
 
@@ -1053,6 +1281,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
 
+
     // Helper function to format date for input
     function formatDateForInput(yearStr) {
         // If the year is just a number (like "2015"), convert to a date string format
@@ -1066,68 +1295,40 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // Skills AJAX
+    // Add multiple skills
+    document.getElementById('saveSkills').addEventListener('click', function () {
+        const input = document.getElementById('skillsInput').value;
+        if (!input.trim()) return;
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the save skills button
-        const saveSkillsBtn = document.getElementById('saveSkills');
+        // Split by comma, trim, filter empty
+        const newSkills = input.split(',').map(s => s.trim()).filter(s => s);
 
-        // Only attach event listener if button exists
-        if (saveSkillsBtn) {
-            saveSkillsBtn.addEventListener('click', function () {
-                const skillsInput = document.getElementById('skillsInput');
-                if (!skillsInput) {
-                    console.error('Skills input not found');
-                    return;
-                }
+        if (newSkills.length === 0) return;
 
-                const input = skillsInput.value;
-                if (!input.trim()) return;
-
-                // Split by comma, trim, filter empty
-                const newSkills = input.split(',').map(s => s.trim()).filter(s => s);
-                if (newSkills.length === 0) return;
-
-                sendAjaxRequest(
-                    'add_skills',
-                    'POST',
-                    { skills: newSkills },
-                    function (response) {
-                        // Append each new skill to DOM
-                        const skillSection = document.querySelector('.skill-section');
-                        if (!skillSection) {
-                            console.error('Skill section not found');
-                            return;
-                        }
-
-                        newSkills.forEach(skill => {
-                            const span = document.createElement('span');
-                            span.className = 'skill-badge rounded-pill';
-                            span.innerHTML = `${skill}
-                            <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-skill-btn" data-skill="${skill}" title="Remove">
-                                <i class="fas fa-times"></i>
-                            </button>`;
-                            skillSection.appendChild(span);
-                        });
-
-                        // Clear input and close modal
-                        if (skillsInput) skillsInput.value = '';
-
-                        const addSkillsModal = document.getElementById('addSkillsModal');
-                        if (addSkillsModal) {
-                            const modal = bootstrap.Modal.getInstance(addSkillsModal);
-                            if (modal) modal.hide();
-                        }
-
-                        showSuccessMessage('Skills added successfully!');
-                    },
-                    function (error) {
-                        alert('Error adding skills: ' + error);
-                    }
-                );
-            });
-        } else {
-            console.error('Save skills button not found');
-        }
+        sendAjaxRequest(
+            'add_skills',
+            'POST',
+            { skills: newSkills },
+            function (response) {
+                // Append each new skill to DOM
+                const skillSection = document.querySelector('.skill-section');
+                newSkills.forEach(skill => {
+                    const span = document.createElement('span');
+                    span.className = 'skill-badge rounded-pill';
+                    span.innerHTML = `${skill}
+                    <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-skill-btn" data-skill="${skill}" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>`;
+                    skillSection.appendChild(span);
+                });
+                document.getElementById('skillsInput').value = '';
+                bootstrap.Modal.getInstance(document.getElementById('addSkillsModal')).hide();
+                showSuccessMessage('Skills added successfully!');
+            },
+            function (error) {
+                alert('Error adding skills: ' + error);
+            }
+        );
     });
 
     // Remove skill
@@ -1150,67 +1351,39 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Get the save language button
-        const saveLanguageBtn = document.getElementById('saveLangguage');
+    document.getElementById('saveLangguage').addEventListener('click', function () {
+        const input = document.getElementById('langguageInput').value;
+        if (!input.trim()) return;
 
-        // Only attach event listener if button exists
-        if (saveLanguageBtn) {
-            saveLanguageBtn.addEventListener('click', function () {
-                const languageInput = document.getElementById('langguageInput');
-                if (!languageInput) {
-                    console.error('Language input not found');
-                    return;
-                }
+        // Split by comma, trim, filter empty
+        const newLanguages = input.split(',').map(s => s.trim()).filter(s => s);
 
-                const input = languageInput.value;
-                if (!input.trim()) return;
+        if (newLanguages.length === 0) return;
 
-                // Split by comma, trim, filter empty
-                const newLanguages = input.split(',').map(s => s.trim()).filter(s => s);
-                if (newLanguages.length === 0) return;
-
-                sendAjaxRequest(
-                    'add_languages',
-                    'POST',
-                    { languages: newLanguages },
-                    function (response) {
-                        // Append each new language to DOM
-                        const langSection = document.querySelector('.langguage-section');
-                        if (!langSection) {
-                            console.error('Language section not found');
-                            return;
-                        }
-
-                        newLanguages.forEach(language => {
-                            const span = document.createElement('span');
-                            span.className = 'langguage-badge rounded-pill';
-                            span.innerHTML = `${language}
-                            <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-language-btn" data-language="${language}" title="Remove">
-                                <i class="fas fa-times"></i>
-                            </button>`;
-                            langSection.appendChild(span);
-                        });
-
-                        // Clear input and close modal
-                        if (languageInput) languageInput.value = '';
-
-                        const addLanguageModal = document.getElementById('addlangguageModal');
-                        if (addLanguageModal) {
-                            const modal = bootstrap.Modal.getInstance(addLanguageModal);
-                            if (modal) modal.hide();
-                        }
-
-                        showSuccessMessage('Languages added successfully!');
-                    },
-                    function (error) {
-                        alert('Error adding languages: ' + error);
-                    }
-                );
-            });
-        } else {
-            console.error('Save language button not found');
-        }
+        sendAjaxRequest(
+            'add_languages',
+            'POST',
+            { languages: newLanguages },
+            function (response) {
+                // Append each new language to DOM
+                const langSection = document.querySelector('.langguage-section');
+                newLanguages.forEach(language => {
+                    const span = document.createElement('span');
+                    span.className = 'langguage-badge rounded-pill';
+                    span.innerHTML = `${language}
+                        <button type="button" class="btn btn-sm btn-link text-danger ms-2 p-0 remove-language-btn" data-language="${language}" title="Remove">
+                            <i class="fas fa-times"></i>
+                        </button>`;
+                    langSection.appendChild(span);
+                });
+                document.getElementById('langguageInput').value = '';
+                bootstrap.Modal.getInstance(document.getElementById('addlangguageModal')).hide();
+                showSuccessMessage('Languages added successfully!');
+            },
+            function (error) {
+                alert('Error adding languages: ' + error);
+            }
+        );
     });
 
     // Remove language
@@ -1232,6 +1405,8 @@ document.addEventListener('DOMContentLoaded', function () {
             );
         }
     });
+
+
     // References AJAX
     // Get the reference form element
     const referenceForm = document.getElementById('referenceForm');
@@ -1245,8 +1420,25 @@ document.addEventListener('DOMContentLoaded', function () {
         referenceForm.appendChild(referenceHiddenIdInput);
     }
 
+    const editreferenceModal = document.getElementById('referenceModal');
+    if (editreferenceModal){
+        let referenceNumberInstance;
+        editreferenceModal.addEventListener('shown.bs.modal', function () {
+            setTimeout(function () {
+                const referenceNumberInput = document.getElementById('referencePhone');
+                if (referenceNumberInput && !referenceNumberInstance) {
+                    referenceNumberInstance = window.intlTelInput(referenceNumberInput, {
+                        initialCountry: "bd",
+                        utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+                        separateDialCode: true,
+                        formatOnDisplay: true,
+                        nationalMode: true
+                    });
+                }
+            }, 100);
+        });
 
-    // Get the save reference button
+            // Get the save reference button
     const saveReferenceBtn = document.getElementById('saveReference');
 
     // Only attach event listener if button exists
@@ -1294,9 +1486,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 position: position,
                 company: company,
                 email: email,
-                phone: phone
+                phone: referenceNumberInstance ? referenceNumberInstance.getNumber() : ''
             };
-
+            saveReferenceBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
             sendAjaxRequest(
                 'update_references',
                 'POST',
@@ -1307,6 +1499,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const referenceEntry = document.querySelector(`.reference-entry[data-id="${id}"]`);
                         if (referenceEntry) {
                             updateReferenceEntry(referenceEntry, name, position, company, email, phone);
+                            //console.log('formData: ' + formData);
                         }
                     } else {
                         // Adding new reference
@@ -1333,6 +1526,10 @@ document.addEventListener('DOMContentLoaded', function () {
             );
         });
     }
+    }
+
+
+
 
     // Function to add a new reference entry
     function addReferenceEntry(name, position, company, email, phone) {
@@ -1391,9 +1588,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Resume Upload AJAX
     document.getElementById('resumeUploadForm').addEventListener('submit', function (e) {
         e.preventDefault();
-        e.stopPropagation(); // Prevent event bubbling
-
-        console.log('Resume form submitted'); // Add this for debugging
+        e.stopPropagation();
+        console.log('Resume form submitted');
 
         const fileInput = document.getElementById('resumeFile');
         const message = document.getElementById('resumeUploadMessage');
@@ -1422,33 +1618,38 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData();
         formData.append('resumeFile', file);
 
-        // Disable submit button to prevent double submission
+        // Add nonce from ajax_common_vars
+        if (typeof ajax_common_vars !== 'undefined' && ajax_common_vars.profile_nonce) {
+            formData.append('nonce', ajax_common_vars.profile_nonce);
+        } else {
+            console.error('Nonce not available');
+            alert('Security token missing. Please refresh the page.');
+            return;
+        }
+
+        // Disable submit button
         const submitButton = this.querySelector('button[type="submit"]');
         const originalButtonText = submitButton.innerHTML;
         submitButton.disabled = true;
         submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
 
+        // Updated function call - removed nonce parameter
         sendFileUploadRequest(
             'upload_resume',
             formData,
             function (response) {
                 console.log('Resume upload successful:', response);
-
                 try {
-                    // Hide the placeholder message if it exists
+                    // Hide placeholder
                     const placeholder = document.querySelector('.no-resume-placeholder');
-                    if (placeholder) {
-                        placeholder.style.display = 'none';
-                    }
+                    if (placeholder) placeholder.style.display = 'none';
 
-                    // Get the resume section
+                    // Get resume section
                     const resumeSection = document.querySelector('.resume-section');
                     const resumepreviewbt = document.querySelector('.resume_upload-btn');
-                    if (!resumeSection) {
-                        throw new Error('Resume section not found');
-                    }
+                    if (!resumeSection) throw new Error('Resume section not found');
 
-                    // Get or create the resume preview
+                    // Get or create resume preview
                     let resumePreview = document.querySelector('.resume-preview');
                     if (!resumePreview) {
                         resumePreview = document.createElement('div');
@@ -1456,7 +1657,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         resumeSection.appendChild(resumePreview);
                     }
 
-                    // Get or create the resume actions
+                    // Get or create resume actions
                     let resumeActions = document.querySelector('.resume-actions');
                     if (!resumeActions) {
                         resumeActions = document.createElement('div');
@@ -1464,7 +1665,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         resumeSection.appendChild(resumeActions);
                     }
 
-                    // Update the resume preview content
+                    // Update preview content
                     const fileName = response.data.filename;
                     const currentDate = new Date();
                     const formattedDate = currentDate.toLocaleDateString('en-US', {
@@ -1474,64 +1675,50 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
 
                     resumePreview.innerHTML = `
-            <i class="fas fa-file-pdf fa-3x text-danger mb-2"></i>
-            <p class="mb-1">${fileName}</p>
-            <small class="text-muted">Uploaded: ${formattedDate}</small>
-        `;
+                    <i class="fas fa-file-pdf fa-3x text-danger mb-2"></i>
+                    <p class="mb-1">${fileName}</p>
+                    <small class="text-muted">Uploaded: ${formattedDate}</small>
+                `;
 
-                    // Update the resume actions
+                    // Update actions
                     resumeActions.innerHTML = `
-            <a href="${response.data.url}" class="btn btn-outline-primary" download>
-                <i class="fas fa-download me-1"></i> Download
-            </a>
-            <button class="btn btn-outline-danger" id="removeResume">
-                <i class="fas fa-trash me-1"></i> Remove
-            </button>
-        `;
+                    <a href="${response.data.url}" class="btn btn-outline-primary" download>
+                        <i class="fas fa-download me-1"></i> Download
+                    </a>
+                    <button class="btn btn-outline-danger" id="removeResume">
+                        <i class="fas fa-trash me-1"></i> Remove
+                    </button>
+                `;
 
-                    // Make sure both elements are visible
+                    // Show elements
                     resumePreview.style.display = 'block';
                     resumeActions.style.display = 'block';
                     resumepreviewbt.style.display = 'none';
 
-                    // Reset the form and close modal after a delay
+                    // Reset and close modal
                     setTimeout(() => {
-                        fileInput.value = ''; // reset input
-
-                        // Check if modal exists before trying to close it
+                        fileInput.value = '';
                         const modalElement = document.getElementById('resumeUploadModal');
                         if (modalElement) {
                             const modal = bootstrap.Modal.getInstance(modalElement);
-                            if (modal) {
-                                modal.hide();
-                            }
+                            if (modal) modal.hide();
                         }
-
-                        // Check if showSuccessMessage exists before calling it
-                        if (typeof showSuccessMessage === 'function') {
-                            showSuccessMessage('Resume uploaded successfully!');
-                        } else {
-                            console.log('Resume uploaded successfully!');
-                        }
-
-                        // Re-enable submit button
+                        // if (typeof showSuccessMessage === 'function') {
+                        //     showSuccessMessage('Resume uploaded successfully!');
+                        // }
                         submitButton.disabled = false;
                         submitButton.innerHTML = originalButtonText;
                     }, 500);
                 } catch (error) {
                     console.error('Error in success callback:', error);
                     alert('Error processing upload: ' + error.message);
-
-                    // Re-enable submit button
                     submitButton.disabled = false;
                     submitButton.innerHTML = originalButtonText;
                 }
             },
             function (error) {
-                console.error('Resume upload error:', error); // Add this for debugging
+                console.error('Resume upload error:', error);
                 alert('Error uploading resume: ' + error);
-
-                // Re-enable submit button
                 submitButton.disabled = false;
                 submitButton.innerHTML = originalButtonText;
             }
@@ -1588,27 +1775,65 @@ document.addEventListener('DOMContentLoaded', function () {
             const formData = new FormData();
             formData.append('profilepic', file);
 
-            // Use the globally available profile nonce
-            const nonce = ajax_common_vars.profile_nonce;
+            // Add nonce to FormData
+            if (typeof ajax_common_vars !== 'undefined' && ajax_common_vars.profile_nonce) {
+                formData.append('nonce', ajax_common_vars.profile_nonce);
+            } else {
+                console.error('Nonce not available');
+                alert('Security token missing. Please refresh the page.');
+                return;
+            }
 
+            // Disable submit button to prevent double submission
+            const submitButton = form.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+
+            // Send AJAX request
             sendFileUploadRequest(
                 'upload_profile_picture_handler',
                 formData,
                 function (response) {
+                    console.log('Profile picture upload successful:', response);
                     form.reset();
+
+                    // Update all profile pictures with new image
+                    if (response.data && response.data.url) {
+                        document.querySelectorAll('.profile-pic').forEach(img => {
+                            img.src = response.data.url;
+                        });
+                    }
+
+                    // Close modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('profilepicUploadModal'));
                     if (modal) {
                         modal.hide();
                     }
-                    showSuccessMessage('Profile picture updated successfully!');
+
+                    // Show success message
+                    if (typeof showSuccessMessage === 'function') {
+                        showSuccessMessage('Profile picture updated successfully!');
+                    } else {
+                        alert('Profile picture updated successfully!');
+                    }
+
+                    // Re-enable submit button
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
                 },
                 function (error) {
+                    console.error('Profile picture upload error:', error);
                     alert('Error uploading profile picture: ' + error);
-                },
-                nonce
+
+                    // Re-enable submit button
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+                }
             );
         }
     });
+
 
     // console.log('custom-ajax.js loaded on page:', window.location.pathname);
 
@@ -1700,22 +1925,33 @@ document.addEventListener('DOMContentLoaded', function () {
             const title = trainingEntry.querySelector('h5').textContent;
             const subtitle = trainingEntry.querySelector('.text-muted').textContent;
             const description = trainingEntry.querySelector('p:last-of-type').textContent;
+            const institution = trainingEntry.querySelector('.institution').textContent;
+            const startYear = trainingEntry.querySelector('.start-year');
+            const endYear = trainingEntry.querySelector('.end-year');
+            const startYearEl = trainingEntry.querySelector('.start-year');
+            const endYearEl = trainingEntry.querySelector('.end-year');
 
-            // Parse institution and years
-            const subtitleParts = subtitle.split(' • ');
-            const institution = subtitleParts[0];
-            const years = subtitleParts[1];
+            // Parse the text into a Date object
+            const startDate = new Date(startYearEl.textContent.trim());
+            const endDate = new Date(endYearEl.textContent.trim());
 
-            // Parse start and end years
-            const yearParts = years.split(' - ');
-            const startYear = yearParts[0];
-            const endYear = yearParts[1];
+            // Format as YYYY-MM-DD
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0'); // months are 0-based
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            const formattedStart = formatDate(startDate);
+            const formattedEnd = formatDate(endDate);
+
 
             // Fill form fields
             document.getElementById('trainingTitle').value = title;
             document.getElementById('institution').value = institution;
-            document.getElementById('startYear').value = formatDateForInput(startYear);
-            document.getElementById('endYear').value = formatDateForInput(endYear);
+            document.getElementById('startYear').value = formattedStart;
+            document.getElementById('endYear').value = formattedEnd;
             document.getElementById('description').value = description;
 
             // Update modal title
@@ -2111,7 +2347,7 @@ function calculateDuration(startDate, endDate) {
     }
     if (remainingMonths > 0) {
         if (duration) duration += ' ';
-        duration += `${remainingMonths} mo${remainingMonths > 1 ? 's' : ''}`;
+        duration += `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`;
     }
 
     return duration || '0 month';
@@ -2243,4 +2479,1103 @@ function parseDateForInput(dateStr) {
     return dateStr; // Return as-is if already in a different format
 }
 
+jQuery(document).ready(function($) {
+    console.log('AJAX login script loaded');
+    
+    // Handle form submission
+    $('#ajax-login-form').on('submit', function(e) {
+        console.log('Form submitted');
+        e.preventDefault();
+        
+        // Show loading spinner
+        $('#login-submit .button-text').addClass('d-none');
+        $('#login-submit .spinner-border').removeClass('d-none');
+        $('#login-submit').prop('disabled', true);
+        $('#login-loading-text').removeClass('d-none');
+        
+        // Get form data
+        var form_data = {
+            'action': 'ajaxlogin', // Changed from 'ajax_login' to 'ajaxlogin'
+            'security': $('#ajax-login-form #security').val(),
+            'log': $('#ajax-login-form #user_login').val(),
+            'pwd': $('#ajax-login-form #user_password').val(),
+            'rememberme': $('#ajax-login-form #rememberMe').is(':checked'),
+            'redirect_to': $('#ajax-login-form input[name="redirect_to"]').val()
+        };
+        
+        console.log('Form data:', form_data);
+        
+        // Send AJAX request
+        $.ajax({
+            type: 'POST',
+            url: ajax_login_object.ajaxurl,
+            data: form_data,
+            dataType: 'json',
+            success: function(response) {
+                console.log('AJAX success:', response);
+                
+                // Hide loading spinner
+                $('#login-submit .button-text').removeClass('d-none');
+                $('#login-submit .spinner-border').addClass('d-none');
+                $('#login-submit').prop('disabled', false);
+                $('#login-loading-text').addClass('d-none');
+                
+                if (response.loggedin === true) {
+                    // Show success message
+                    $('#login-message').removeClass('alert-danger d-none').addClass('alert-success').html(response.message);
+                    
+                    // Redirect to profile page
+                    setTimeout(function() {
+                        window.location.href = response.redirect;
+                    }, 1000);
+                } else {
+                    // Show error message
+                    $('#login-message').removeClass('alert-success d-none').addClass('alert-danger').html(response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX error:', xhr.responseText);
+                console.log('Status:', status);
+                console.log('Error:', error);
+                
+                // Hide loading spinner
+                $('#login-submit .button-text').removeClass('d-none');
+                $('#login-submit .spinner-border').addClass('d-none');
+                $('#login-submit').prop('disabled', false);
+                
+                // Show error message
+                $('#login-message').removeClass('alert-success d-none').addClass('alert-danger').html('An error occurred. Please try again. Error: ' + error);
+            }
+        });
+    });
+    
+    // Handle social login buttons
+    $('.btn-outline-social').on('click', function(e) {
+        e.preventDefault();
+        var provider = $(this).data('provider');
+        
+        // For now, just show a message
+        $('#login-message').removeClass('alert-danger d-none').addClass('alert-info').html('Social login with ' + provider + ' will be implemented soon.');
+    });
+});
 
+
+
+// ============ Signup Page Ajax ============
+jQuery(document).ready(function($) {
+    console.log('Signup script loaded');
+    
+    // First, let's check if ajax_signup_object is defined
+    if (typeof ajax_signup_object === 'undefined') {
+        console.error('ajax_signup_object is not defined!');
+        return;
+    }
+    
+    console.log('ajax_signup_object:', ajax_signup_object);
+    
+    // Handle signup form submission
+    $('#ajax-signup-form').on('submit', function(e) {
+        console.log('Form submitted');
+        e.preventDefault();
+        
+        // Reset previous messages
+        $('#signup-message').removeClass('alert-danger alert-success d-none').html('');
+        
+        // Validate form
+        var isValid = true;
+        var errorMessage = '';
+        
+        // Check if passwords match
+        if ($('#floatingPassword').val() !== $('#floatingConfirmPassword').val()) {
+            isValid = false;
+            errorMessage = ajax_signup_object.passwords_do_not_match;
+            $('#passwordMatch').text(errorMessage);
+        } else {
+            $('#passwordMatch').text('');
+        }
+        
+        // Check if terms are accepted
+        if (!$('#termsCheck').is(':checked')) {
+            isValid = false;
+            errorMessage = ajax_signup_object.accept_terms_error;
+        }
+        
+        if (!isValid) {
+            $('#signup-message').removeClass('d-none').addClass('alert-danger').html(errorMessage);
+            return;
+        }
+        
+        // Show loading spinner
+        $('#signup-submit .button-text').addClass('d-none');
+        $('#signup-submit .spinner-border').removeClass('d-none');
+        $('#signup-submit').prop('disabled', true);
+        $('#loading-text').removeClass('d-none');
+        
+        // Get form data
+        var form_data = {
+            'action': 'ajaxsignup',
+            'security': $('#ajax-signup-form #security').val(),
+            'username': $('#floatingUsername').val(),
+            'email': $('#floatingEmail').val(),
+            'password': $('#floatingPassword').val(),
+            'confirm_password': $('#floatingConfirmPassword').val(),
+            'terms': $('#termsCheck').is(':checked'),
+            'redirect_to': $('#ajax-signup-form input[name="redirect_to"]').val()
+        };
+        
+        console.log('Form data:', form_data);
+        
+        // Send AJAX request
+        $.ajax({
+            type: 'POST',
+            url: ajax_signup_object.ajaxurl,
+            data: form_data,
+            dataType: 'json',
+            success: function(response) {
+                console.log('AJAX success:', response);
+                
+                // Hide loading spinner
+                $('#signup-submit .button-text').removeClass('d-none');
+                $('#signup-submit .spinner-border').addClass('d-none');
+                $('#signup-submit').prop('disabled', false);
+                $('#loading-text').addClass('d-none');
+                
+                if (response.success === true) {
+                    // Show success message
+                    $('#signup-message').removeClass('alert-danger d-none').addClass('alert-success').html(response.message);
+                    
+                    // Redirect to profile page
+                    setTimeout(function() {
+                        window.location.href = response.redirect;
+                    }, 1500);
+                } else {
+                    // Show error message
+                    $('#signup-message').removeClass('alert-success d-none').addClass('alert-danger').html(response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX error:', xhr.responseText);
+                console.log('Status:', status);
+                console.log('Error:', error);
+                
+                // Hide loading spinner
+                $('#signup-submit .button-text').removeClass('d-none');
+                $('#signup-submit .spinner-border').addClass('d-none');
+                $('#signup-submit').prop('disabled', false);
+                
+                // Show error message
+                $('#signup-message').removeClass('alert-success d-none').addClass('alert-danger').html(ajax_signup_object.error_occurred);
+            }
+        });
+    });
+    
+    // Handle social signup buttons
+    $('.btn-outline-social').on('click', function(e) {
+        e.preventDefault();
+        var provider = $(this).data('provider');
+        
+        // For now, just show a message
+        $('#signup-message').removeClass('alert-danger d-none').addClass('alert-info').html('Social signup with ' + provider + ' will be implemented soon.');
+    });
+    
+    // Password strength checker
+    $('#floatingPassword').on('input', function() {
+        var password = $(this).val();
+        var strength = 0;
+        
+        // Check password length
+        if (password.length >= 8) {
+            strength += 1;
+        }
+        
+        // Check for lowercase letters
+        if (password.match(/[a-z]+/)) {
+            strength += 1;
+        }
+        
+        // Check for uppercase letters
+        if (password.match(/[A-Z]+/)) {
+            strength += 1;
+        }
+        
+        // Check for numbers
+        if (password.match(/[0-9]+/)) {
+            strength += 1;
+        }
+        
+        // Check for special characters
+        if (password.match(/[$@#&!]+/)) {
+            strength += 1;
+        }
+        
+        // Update strength bar
+        var strengthBar = $('#passwordStrengthBar');
+        strengthBar.removeClass('bg-danger bg-warning bg-success bg-info');
+        
+        if (strength < 2) {
+            strengthBar.css('width', '20%').addClass('bg-danger');
+        } else if (strength < 3) {
+            strengthBar.css('width', '40%').addClass('bg-warning');
+        } else if (strength < 4) {
+            strengthBar.css('width', '60%').addClass('bg-info');
+        } else if (strength < 5) {
+            strengthBar.css('width', '80%').addClass('bg-success');
+        } else {
+            strengthBar.css('width', '100%').addClass('bg-success');
+        }
+    });
+    
+    // Check if passwords match
+    $('#floatingConfirmPassword').on('input', function() {
+        var password = $('#floatingPassword').val();
+        var confirmPassword = $(this).val();
+        var matchMessage = $('#passwordMatch');
+        
+        if (password !== confirmPassword) {
+            matchMessage.text(ajax_signup_object.passwords_do_not_match);
+        } else {
+            matchMessage.text('');
+        }
+    });
+});
+
+
+
+// ============ Forgot Password AJAX =============//
+
+jQuery(document).ready(function($) {
+    // Handle forgot password form submission
+    $('#ajax-forgot-password-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        // Reset previous messages
+        $('#forgot-password-message').removeClass('alert-danger alert-success d-none').html('');
+        
+        // Show loading spinner
+        $('#reset-password-submit .button-text').addClass('d-none');
+        $('#reset-password-submit .spinner-border').removeClass('d-none');
+        $('#reset-password-submit').prop('disabled', true);
+        
+        // Get form data
+        var form_data = {
+            'action': 'ajaxforgotpassword',
+            'security': $('#ajax-forgot-password-form #security').val(),
+            'email': $('#floatingEmail').val(),
+            'redirect_to': $('#ajax-forgot-password-form input[name="redirect_to"]').val()
+        };
+        
+        console.log('Form data:', form_data);
+        
+        // Send AJAX request
+        $.ajax({
+            type: 'POST',
+            url: ajax_forgot_password_object.ajaxurl,
+            data: form_data,
+            dataType: 'json',
+            success: function(response) {
+                console.log('AJAX success:', response);
+                
+                // Hide loading spinner
+                $('#reset-password-submit .button-text').removeClass('d-none');
+                $('#reset-password-submit .spinner-border').addClass('d-none');
+                $('#reset-password-submit').prop('disabled', false);
+                
+                if (response.success === true) {
+                    // Show success message
+                    $('#forgot-password-message').removeClass('alert-danger d-none').addClass('alert-success').html(response.message);
+                    
+                    // Clear the form
+                    $('#ajax-forgot-password-form')[0].reset();
+                    
+                    // Redirect after a delay
+                    setTimeout(function() {
+                        window.location.href = response.redirect;
+                    }, 3000);
+                } else {
+                    // Show error message
+                    $('#forgot-password-message').removeClass('alert-success d-none').addClass('alert-danger').html(response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX error:', xhr.responseText);
+                console.log('Status:', status);
+                console.log('Error:', error);
+                
+                // Hide loading spinner
+                $('#reset-password-submit .button-text').removeClass('d-none');
+                $('#reset-password-submit .spinner-border').addClass('d-none');
+                $('#reset-password-submit').prop('disabled', false);
+                
+                // Show error message
+                $('#forgot-password-message').removeClass('alert-success d-none').addClass('alert-danger').html(ajax_forgot_password_object.error_occurred);
+            }
+        });
+    });
+});
+
+
+// ============ Reset Password AJAX =============//
+jQuery(document).ready(function($) {
+    // Handle password reset form submission
+    $('#ajax-password-reset-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        // Reset previous messages
+        $('#password-reset-message').removeClass('alert-danger alert-success d-none').html('');
+        
+        // Validate form
+        var isValid = true;
+        var errorMessage = '';
+        
+        // Check if passwords match
+        if ($('#floatingPassword').val() !== $('#floatingConfirmPassword').val()) {
+            isValid = false;
+            errorMessage = ajax_password_reset_object.passwords_do_not_match;
+            $('#passwordMatch').text(errorMessage);
+        } else {
+            $('#passwordMatch').text('');
+        }
+        
+        // Check password length
+        if ($('#floatingPassword').val().length < 8) {
+            isValid = false;
+            if (errorMessage) errorMessage += '<br>';
+            errorMessage += ajax_password_reset_object.password_too_short;
+        }
+        
+        if (!isValid) {
+            $('#password-reset-message').removeClass('d-none').addClass('alert-danger').html(errorMessage);
+            return;
+        }
+        
+        // Show loading spinner
+        $('#password-reset-submit .button-text').addClass('d-none');
+        $('#password-reset-submit .spinner-border').removeClass('d-none');
+        $('#password-reset-submit').prop('disabled', true);
+        
+        
+        // Get form data
+        var form_data = {
+            'action': 'ajaxpasswordreset',
+            'security': $('#ajax-password-reset-form #security').val(),
+            'key': $('#ajax-password-reset-form input[name="key"]').val(),
+            'login': $('#ajax-password-reset-form input[name="login"]').val(),
+            'password': $('#floatingPassword').val(),
+            'confirm_password': $('#floatingConfirmPassword').val(),
+            'redirect_to': $('#ajax-password-reset-form input[name="redirect_to"]').val()
+        };
+        
+        console.log('Form data:', form_data);
+        
+        // Send AJAX request
+        $.ajax({
+            type: 'POST',
+            url: ajax_password_reset_object.ajaxurl,
+            data: form_data,
+            dataType: 'json',
+            success: function(response) {
+                console.log('AJAX success:', response);
+                
+                // Hide loading spinner
+                $('#password-reset-submit .button-text').removeClass('d-none');
+                $('#password-reset-submit .spinner-border').addClass('d-none');
+                $('#password-reset-submit').prop('disabled', false);
+                
+                if (response.success === true) {
+                    // Show success message
+                    $('#password-reset-message').removeClass('alert-danger d-none').addClass('alert-success').html(response.message);
+                    
+                    // Clear the form
+                    $('#ajax-password-reset-form')[0].reset();
+                    
+                    // Redirect after a delay
+                    setTimeout(function() {
+                        window.location.href = response.redirect;
+                    }, 1500);
+                } else {
+                    // Show error message
+                    $('#password-reset-message').removeClass('alert-success d-none').addClass('alert-danger').html(response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX error:', xhr.responseText);
+                console.log('Status:', status);
+                console.log('Error:', error);
+                
+                // Hide loading spinner
+                $('#password-reset-submit .button-text').removeClass('d-none');
+                $('#password-reset-submit .spinner-border').addClass('d-none');
+                $('#password-reset-submit').prop('disabled', false);
+                
+                // Show error message
+                $('#password-reset-message').removeClass('alert-success d-none').addClass('alert-danger').html(ajax_password_reset_object.error_occurred);
+            }
+        });
+    });
+    
+    // Password strength checker for reset form
+    $('#floatingPassword').on('input', function() {
+        var password = $(this).val();
+        var strength = 0;
+        
+        // Check password length
+        if (password.length >= 8) {
+            strength += 1;
+        }
+        
+        // Check for lowercase letters
+        if (password.match(/[a-z]+/)) {
+            strength += 1;
+        }
+        
+        // Check for uppercase letters
+        if (password.match(/[A-Z]+/)) {
+            strength += 1;
+        }
+        
+        // Check for numbers
+        if (password.match(/[0-9]+/)) {
+            strength += 1;
+        }
+        
+        // Check for special characters
+        if (password.match(/[$@#&!]+/)) {
+            strength += 1;
+        }
+        
+        // Update strength bar
+        var strengthBar = $('#passwordStrengthBar');
+        strengthBar.removeClass('bg-danger bg-warning bg-success bg-info');
+        
+        if (strength < 2) {
+            strengthBar.css('width', '20%').addClass('bg-danger');
+        } else if (strength < 3) {
+            strengthBar.css('width', '40%').addClass('bg-warning');
+        } else if (strength < 4) {
+            strengthBar.css('width', '60%').addClass('bg-info');
+        } else if (strength < 5) {
+            strengthBar.css('width', '80%').addClass('bg-success');
+        } else {
+            strengthBar.css('width', '100%').addClass('bg-success');
+        }
+    });
+    
+    // Check if passwords match for reset form
+    $('#floatingConfirmPassword').on('input', function() {
+        var password = $('#floatingPassword').val();
+        var confirmPassword = $(this).val();
+        var matchMessage = $('#passwordMatch');
+        
+        if (password !== confirmPassword) {
+            matchMessage.text(ajax_password_reset_object.passwords_do_not_match);
+        } else {
+            matchMessage.text('');
+        }
+    });
+});
+
+//*************************** */
+
+document.addEventListener('DOMContentLoaded', function() {
+
+// Email Notifications Toggle
+    const emailNotifyToggle = document.getElementById('emailNotify');
+    
+    if (emailNotifyToggle) {
+        // Set initial state from global variable
+        emailNotifyToggle.checked = window.emailNotifications || false;
+        
+        emailNotifyToggle.addEventListener('change', function() {
+            const enabled = this.checked;
+            
+            sendAjaxRequest(
+                'email_notifications',
+                'POST',
+                { enabled: enabled },
+                function(response) {
+                    showSuccessMessage('Email notifications updated successfully');
+                },
+                function(error) {
+                    // Revert toggle on error
+                    emailNotifyToggle.checked = !enabled;
+                    alert('Error updating email notifications: ' + error);
+                }
+            );
+        });
+    }
+
+//  // Change Password Form
+//     const changePasswordForm = document.getElementById('changePasswordForm');
+//     const changePasswordBtn = document.getElementById('changePasswordBtn');
+    
+//     // Toggle password visibility
+//     const toggleCurrentPassword = document.getElementById('toggleCurrentPassword');
+//     const toggleNewPassword = document.getElementById('toggleNewPassword');
+//     const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+    
+//     // Function to toggle password visibility
+//     function togglePasswordVisibility(toggleButton, passwordInput) {
+//         const icon = toggleButton.querySelector('i');
+        
+//         if (passwordInput.type === 'password') {
+//             passwordInput.type = 'text';
+//             icon.classList.remove('fa-eye');
+//             icon.classList.add('fa-eye-slash');
+//         } else {
+//             passwordInput.type = 'password';
+//             icon.classList.remove('fa-eye-slash');
+//             icon.classList.add('fa-eye');
+//         }
+//     }
+    
+//     if (toggleCurrentPassword) {
+//         toggleCurrentPassword.addEventListener('click', function(e) {
+//             e.preventDefault(); // Prevent form submission
+//             const passwordInput = document.getElementById('currentPassword');
+//             togglePasswordVisibility(this, passwordInput);
+//         });
+//     }
+    
+//     if (toggleNewPassword) {
+//         toggleNewPassword.addEventListener('click', function(e) {
+//             e.preventDefault(); // Prevent form submission
+//             const passwordInput = document.getElementById('newPassword');
+//             togglePasswordVisibility(this, passwordInput);
+//         });
+//     }
+    
+//     if (toggleConfirmPassword) {
+//         toggleConfirmPassword.addEventListener('click', function(e) {
+//             e.preventDefault(); // Prevent form submission
+//             const passwordInput = document.getElementById('confirmPassword');
+//             togglePasswordVisibility(this, passwordInput);
+//         });
+//     }
+    
+//     // Password strength indicator
+//     const newPasswordInput = document.getElementById('newPassword');
+//     const passwordStrengthBar = document.getElementById('passwordStrengthBar');
+//     const passwordStrengthText = document.getElementById('passwordStrengthText');
+    
+//     if (newPasswordInput && passwordStrengthBar && passwordStrengthText) {
+//         newPasswordInput.addEventListener('input', function() {
+//             const password = this.value;
+//             let strength = 0;
+//             let feedback = [];
+            
+//             // Length check
+//             if (password.length >= 8) {
+//                 strength += 25;
+//             } else {
+//                 feedback.push('at least 8 characters');
+//             }
+            
+//             // Uppercase letters
+//             if (password.match(/[A-Z]/)) {
+//                 strength += 25;
+//             } else {
+//                 feedback.push('uppercase letters');
+//             }
+            
+//             // Lowercase letters
+//             if (password.match(/[a-z]/)) {
+//                 strength += 25;
+//             } else {
+//                 feedback.push('lowercase letters');
+//             }
+            
+//             // Numbers
+//             if (password.match(/[0-9]/)) {
+//                 strength += 25;
+//             } else {
+//                 feedback.push('numbers');
+//             }
+            
+//             // Special characters
+//             if (password.match(/[^A-Za-z0-9]/)) {
+//                 strength += 5; // Bonus for special characters
+//             }
+            
+//             // Update strength bar
+//             passwordStrengthBar.style.width = strength + '%';
+            
+//             // Update strength text and bar color
+//             if (password.length === 0) {
+//                 passwordStrengthBar.className = 'progress-bar';
+//                 passwordStrengthText.textContent = 'Enter a password';
+//             } else if (strength < 50) {
+//                 passwordStrengthBar.className = 'progress-bar bg-danger';
+//                 passwordStrengthText.textContent = 'Weak: Add ' + feedback.join(', ');
+//             } else if (strength < 75) {
+//                 passwordStrengthBar.className = 'progress-bar bg-warning';
+//                 passwordStrengthText.textContent = 'Medium: Add ' + feedback.join(', ');
+//             } else if (strength < 90) {
+//                 passwordStrengthBar.className = 'progress-bar bg-info';
+//                 passwordStrengthText.textContent = 'Strong';
+//             } else {
+//                 passwordStrengthBar.className = 'progress-bar bg-success';
+//                 passwordStrengthText.textContent = 'Very Strong';
+//             }
+//         });
+//     }
+    
+
+    
+//     if (changePasswordForm) {
+//         changePasswordForm.addEventListener('submit', function(e) {
+//             e.preventDefault(); // Prevent form submission
+            
+//             // Get form elements
+//             const currentPassword = document.getElementById('currentPassword');
+//             const newPassword = document.getElementById('newPassword');
+//             const confirmPassword = document.getElementById('confirmPassword');
+            
+//             // Check if elements exist
+//             if (!currentPassword || !newPassword || !confirmPassword) {
+//                 console.error('Form elements not found');
+//                 alert('Form elements not found');
+//                 return;
+//             }
+            
+//             // Get values directly from the elements
+//             const currentPasswordValue = currentPassword.value;
+//             const newPasswordValue = newPassword.value;
+//             const confirmPasswordValue = confirmPassword.value;
+            
+//             // Debug: Log the values
+//             console.log('Form values:', {
+//                 currentPassword: currentPasswordValue,
+//                 newPassword: newPasswordValue,
+//                 confirmPassword: confirmPasswordValue
+//             });
+            
+//             // Basic validation
+//             if (!currentPasswordValue) {
+//                 alert('Current password is required');
+//                 currentPassword.focus();
+//                 return;
+//             }
+            
+//             if (!newPasswordValue) {
+//                 alert('New password is required');
+//                 newPassword.focus();
+//                 return;
+//             }
+            
+//             if (!confirmPasswordValue) {
+//                 alert('Confirm password is required');
+//                 confirmPassword.focus();
+//                 return;
+//             }
+            
+//             if (newPasswordValue !== confirmPasswordValue) {
+//                 alert('New passwords do not match');
+//                 newPassword.focus();
+//                 return;
+//             }
+            
+//             // Get the submit button
+//             const changePasswordBtn = document.getElementById('changePasswordBtn');
+            
+//             // Add loading state
+//             const originalText = changePasswordBtn.innerHTML;
+//             changePasswordBtn.disabled = true;
+//             changePasswordBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Changing...';
+            
+//             // Prepare data for AJAX request
+//             const data = {
+//                 action: 'change_password',
+//                 nonce: ajax_common_vars.profile_nonce,
+//                 current_password: currentPasswordValue,
+//                 new_password: newPasswordValue,
+//                 confirm_password: confirmPasswordValue
+//             };
+            
+//             // Send AJAX request using URL-encoded data
+//             const xhr = new XMLHttpRequest();
+//             xhr.open('POST', ajax_common_vars.ajaxurl, true);
+//             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+//             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            
+//             xhr.onreadystatechange = function () {
+//                 if (xhr.readyState === 4) {
+//                     if (xhr.status === 200) {
+//                         try {
+//                             const response = JSON.parse(xhr.responseText);
+//                             console.log('AJAX response:', response);
+//                             if (response.success) {
+//                                 // Show success message
+//                                 alert(response.data);
+                                
+//                                 // Close modal
+//                                 const modal = bootstrap.Modal.getInstance(document.getElementById('changePasswordModal'));
+//                                 if (modal) {
+//                                     modal.hide();
+//                                 }
+                                
+//                                 // Reset form
+//                                 changePasswordForm.reset();
+                                
+//                                 // Reset button
+//                                 changePasswordBtn.disabled = false;
+//                                 changePasswordBtn.innerHTML = originalText;
+                                
+//                                 // Redirect to login page after a short delay
+//                                 setTimeout(function() {
+//                                     window.location.href = '<?php echo home_url('/login/'); ?>';
+//                                 }, 2000);
+//                             } else {
+//                                 alert('Error: ' + (response.data || response.message));
+//                                 // Reset button
+//                                 changePasswordBtn.disabled = false;
+//                                 changePasswordBtn.innerHTML = originalText;
+//                             }
+//                         } catch (e) {
+//                             console.error('AJAX response parsing error:', e);
+//                             alert('Invalid server response');
+//                             // Reset button
+//                             changePasswordBtn.disabled = false;
+//                             changePasswordBtn.innerHTML = originalText;
+//                         }
+//                     } else {
+//                         console.error('AJAX request failed with status:', xhr.status);
+//                         alert('Request failed with status: ' + xhr.status);
+//                         // Reset button
+//                         changePasswordBtn.disabled = false;
+//                         changePasswordBtn.innerHTML = originalText;
+//                     }
+//                 }
+//             };
+            
+//             // Convert data to URL-encoded string
+//             const urlEncodedData = Object.keys(data)
+//                 .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(data[key]))
+//                 .join('&');
+            
+//             console.log('Sending AJAX request with data:', urlEncodedData);
+//             xhr.send(urlEncodedData);
+//         });
+//     }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 DOM loaded, initializing change password functionality...');
+    
+    // Initialize when modal is shown
+    const changePasswordModal = document.getElementById('changePasswordModal');
+    if (changePasswordModal) {
+        changePasswordModal.addEventListener('shown.bs.modal', function() {
+            console.log('✅ Change password modal is now fully shown');
+            initializeChangePassword();
+        });
+    }
+    
+    // Also initialize on page load in case modal is already open
+    initializeChangePassword();
+});
+
+function initializeChangePassword() {
+    console.log('🔧 Initializing change password functionality...');
+    
+    // Get all elements
+    const changePasswordForm = document.getElementById('changePasswordForm');
+    const changePasswordBtn = document.getElementById('changePasswordBtn');
+    const toggleCurrentPassword = document.getElementById('toggleCurrentPassword');
+    const toggleNewPassword = document.getElementById('toggleNewPassword');
+    const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+    const newPasswordInput = document.getElementById('newPassword');
+    const passwordStrengthBar = document.getElementById('passwordStrengthBar');
+    const passwordStrengthText = document.getElementById('passwordStrengthText');
+    
+    // Debug: Check if elements exist
+    console.log('🔍 Elements found:', {
+        changePasswordForm: !!changePasswordForm,
+        changePasswordBtn: !!changePasswordBtn,
+        toggleCurrentPassword: !!toggleCurrentPassword,
+        toggleNewPassword: !!toggleNewPassword,
+        toggleConfirmPassword: !!toggleConfirmPassword,
+        newPasswordInput: !!newPasswordInput
+    });
+    
+    // Toggle password visibility function
+    function togglePasswordVisibility(toggleButton, passwordInput) {
+        const icon = toggleButton.querySelector('i');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+    
+    // Initialize password visibility toggles
+    if (toggleCurrentPassword) {
+        toggleCurrentPassword.addEventListener('click', function(e) {
+            e.preventDefault();
+            const passwordInput = document.getElementById('currentPassword');
+            if (passwordInput) {
+                togglePasswordVisibility(this, passwordInput);
+            }
+        });
+    }
+    
+    if (toggleNewPassword) {
+        toggleNewPassword.addEventListener('click', function(e) {
+            e.preventDefault();
+            const passwordInput = document.getElementById('newPassword');
+            if (passwordInput) {
+                togglePasswordVisibility(this, passwordInput);
+            }
+        });
+    }
+    
+    if (toggleConfirmPassword) {
+        toggleConfirmPassword.addEventListener('click', function(e) {
+            e.preventDefault();
+            const passwordInput = document.getElementById('confirmPassword');
+            if (passwordInput) {
+                togglePasswordVisibility(this, passwordInput);
+            }
+        });
+    }
+    
+    // Password strength indicator
+    if (newPasswordInput && passwordStrengthBar && passwordStrengthText) {
+        newPasswordInput.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+            let feedback = [];
+            
+            // Length check
+            if (password.length >= 8) {
+                strength += 25;
+            } else {
+                feedback.push('at least 8 characters');
+            }
+            
+            // Uppercase letters
+            if (password.match(/[A-Z]/)) {
+                strength += 25;
+            } else {
+                feedback.push('uppercase letters');
+            }
+            
+            // Lowercase letters
+            if (password.match(/[a-z]/)) {
+                strength += 25;
+            } else {
+                feedback.push('lowercase letters');
+            }
+            
+            // Numbers
+            if (password.match(/[0-9]/)) {
+                strength += 25;
+            } else {
+                feedback.push('numbers');
+            }
+            
+            // Special characters
+            if (password.match(/[^A-Za-z0-9]/)) {
+                strength += 5; // Bonus for special characters
+            }
+            
+            // Update strength bar
+            passwordStrengthBar.style.width = strength + '%';
+            
+            // Update strength text and bar color
+            if (password.length === 0) {
+                passwordStrengthBar.className = 'progress-bar';
+                passwordStrengthText.textContent = 'Enter a password';
+            } else if (strength < 50) {
+                passwordStrengthBar.className = 'progress-bar bg-danger';
+                passwordStrengthText.textContent = 'Weak: Add ' + feedback.join(', ');
+            } else if (strength < 75) {
+                passwordStrengthBar.className = 'progress-bar bg-warning';
+                passwordStrengthText.textContent = 'Medium: Add ' + feedback.join(', ');
+            } else if (strength < 90) {
+                passwordStrengthBar.className = 'progress-bar bg-info';
+                passwordStrengthText.textContent = 'Strong';
+            } else {
+                passwordStrengthBar.className = 'progress-bar bg-success';
+                passwordStrengthText.textContent = 'Very Strong';
+            }
+        });
+    }
+    
+    // Change password form submission
+    if (changePasswordBtn) {
+        // Remove any existing event listeners
+        changePasswordBtn.replaceWith(changePasswordBtn.cloneNode(true));
+        const newChangePasswordBtn = document.getElementById('changePasswordBtn');
+        
+        newChangePasswordBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('🔍 Change password button clicked');
+            
+            // Get fresh references to input elements
+            const currentPasswordInput = document.getElementById('currentPassword');
+            const newPasswordInput = document.getElementById('newPassword');
+            const confirmPasswordInput = document.getElementById('confirmPassword');
+            
+            // Check if elements exist
+            if (!currentPasswordInput || !newPasswordInput || !confirmPasswordInput) {
+                console.error('❌ Form input elements not found');
+                alert('Form elements not found. Please refresh the page.');
+                return;
+            }
+            
+            // Get values directly from inputs
+            const currentPasswordValue = currentPasswordInput.value.trim();
+            const newPasswordValue = newPasswordInput.value.trim();
+            const confirmPasswordValue = confirmPasswordInput.value.trim();
+            
+            console.log('🔍 ACTUAL FORM VALUES:', {
+                currentPassword: currentPasswordValue,
+                newPassword: newPasswordValue,
+                confirmPassword: confirmPasswordValue
+            });
+            
+            // Client-side validation
+            if (!currentPasswordValue) {
+                alert('Please enter your current password.');
+                currentPasswordInput.focus();
+                return;
+            }
+            
+            if (!newPasswordValue) {
+                alert('Please enter a new password.');
+                newPasswordInput.focus();
+                return;
+            }
+            
+            if (!confirmPasswordValue) {
+                alert('Please confirm your new password.');
+                confirmPasswordInput.focus();
+                return;
+            }
+            
+            if (newPasswordValue !== confirmPasswordValue) {
+                alert('New passwords do not match. Please make sure both passwords are identical.');
+                newPasswordInput.focus();
+                return;
+            }
+            
+            // Password strength validation
+            if (newPasswordValue.length < 8) {
+                alert('New password must be at least 8 characters long.');
+                newPasswordInput.focus();
+                return;
+            }
+            
+            console.log('✅ All client-side validations passed');
+            
+            // Add loading state
+            const originalText = newChangePasswordBtn.innerHTML;
+            newChangePasswordBtn.disabled = true;
+            newChangePasswordBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Changing...';
+            
+            // Prepare data for AJAX
+            const params = new URLSearchParams();
+            params.append('action', 'change_password');
+            params.append('nonce', ajax_common_vars.profile_nonce);
+            params.append('current_password', currentPasswordValue);
+            params.append('new_password', newPasswordValue);
+            params.append('confirm_password', confirmPasswordValue);
+            
+            console.log('📤 Sending AJAX request with data:', params.toString());
+            
+            // Send AJAX request
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', ajax_common_vars.ajaxurl, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    console.log('📥 Raw server response:', xhr.responseText);
+                    console.log('📊 Response status:', xhr.status);
+                    
+                    // Reset button state
+                    newChangePasswordBtn.disabled = false;
+                    newChangePasswordBtn.innerHTML = originalText;
+                    
+                    if (xhr.status === 200) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            console.log('✅ Parsed server response:', response);
+                            
+                            if (response.success) {
+                                changePasswordForm.classList.add('d-none');
+                                document.getElementById('cngpasssuccessMessage').classList.remove('d-none');
+                                document.getElementById('cngpasssuccessMessagetext').textContent = response.data;
+                           
+                                // Success handling
+                               // alert('Success: ' + response.data);
+                                
+                                // Close modal
+                                const modalElement = document.getElementById('changePasswordModal');
+                                const modal = bootstrap.Modal.getInstance(modalElement);
+                                if (modal) {
+                                    setTimeout(function(){
+                                        modal.hide();
+                                    }, 2000); // Close after 1.5 seconds
+                                }
+                                
+                                // Reset form
+                                if (changePasswordForm) {
+                                    changePasswordForm.reset();
+                                }
+                                
+                                // Reset password strength indicator
+                                if (passwordStrengthBar && passwordStrengthText) {
+                                    passwordStrengthBar.style.width = '0%';
+                                    passwordStrengthBar.className = 'progress-bar';
+                                    passwordStrengthText.textContent = 'Enter a password';
+                                }
+                                
+                                // Redirect to login page after success - using the correct login slug
+                                // setTimeout(function() {
+                                //     // Use home_url + /login/ as you mentioned
+                                //     window.location.href = ajax_common_vars.home_url + '/login/';
+                                // }, 1500); // Reduced to 1.5 seconds for better UX
+                            } else {
+                                changePasswordForm.classList.add('d-none');
+                                document.getElementById('cngpasserrorMessage').classList.remove('d-none');
+                                document.getElementById('cngpasserrorMessagetext').textContent = response.data;
+                                // Error handling
+                                // Server returned error
+                                //alert('Errora: ' + (response.data || 'Unknown server error'));
+                            }
+                        } catch (e) {
+                            console.error('❌ JSON parse error:', e);
+                            alert('Errorb: Invalid response from server. Please try again.');
+                        }
+                    } else {
+                        console.error('❌ HTTP error:', xhr.status);
+                        alert('Errorc: Request failed with status ' + xhr.status);
+                    }
+                }
+            };
+            
+            xhr.onerror = function() {
+                console.error('❌ Network error occurred');
+                alert('Error: Network error. Please check your connection and try again.');
+                newChangePasswordBtn.disabled = false;
+                newChangePasswordBtn.innerHTML = originalText;
+            };
+            
+            // Send the request
+            xhr.send(params.toString());
+        });
+        
+        console.log('✅ Change password button event listener attached');
+    } else {
+        console.error('❌ Change password button not found');
+    }
+}

@@ -431,83 +431,6 @@ function get_experience_levels() {
     return $experience_levels;
 }
 
-
-function job_listing_pagination_with_query($custom_query = null) {
-    global $wp_query, $wp_rewrite;
-    
-    // Use custom query if provided, otherwise use main query
-    $query = $custom_query ? $custom_query : $wp_query;
-    
-    // Don't show pagination if there's only 1 page
-    if ($query->max_num_pages <= 1) {
-        return;
-    }
-    
-    // Get the current URL without parameters
-    $current_url = home_url($_SERVER['REQUEST_URI']);
-    
-    // Remove existing page parameter if it exists
-    $base = preg_replace('~/page/\d+~', '', $current_url);
-    $base = trailingslashit($base);
-    
-    // Get pagination base - FIXED THE UNDEFINED VARIABLE ISSUE HERE
-    $pagination_base = $wp_rewrite->pagination_base ? $wp_rewrite->pagination_base : 'page';
-    
-    // Set up pagination args
-    $big = 999999999; // need an unlikely integer
-    $args = array(
-        'base'    => str_replace($big, '%#%', esc_url(add_query_arg('paged', $big, $base))),
-        'format'  => '?paged=%#%',
-        'current' => max(1, get_query_var('paged')),
-        'total'   => $query->max_num_pages,
-        'type'    => 'array',
-        'prev_text' => __('Previous', 'job-listing'),
-        'next_text' => __('Next', 'job-listing'),
-    );
-    
-    // Use pretty URLs if permalinks are enabled
-    if ($wp_rewrite->using_permalinks()) {
-        $args['base'] = user_trailingslashit(trailingslashit($base) . $pagination_base . '/%#%', 'paged');
-        $args['format'] = $pagination_base . '/%#%';
-    }
-    
-    $pages = paginate_links($args);
-    
-    if (is_array($pages)) {
-        $pagination = '<nav aria-label="Job listings pagination"><ul class="pagination justify-content-center mt-4">';
-        
-        foreach ($pages as $page) {
-            $li_class = 'page-item';
-            $link_class = 'page-link';
-            
-            if (strpos($page, 'current') !== false) {
-                $li_class .= ' active';
-                $page = str_replace(array('page-numbers', 'current'), $link_class, $page);
-            } 
-            elseif (strpos($page, 'prev') !== false) {
-                if (strpos($page, 'disabled') !== false) {
-                    $li_class .= ' disabled';
-                }
-                $page = str_replace(array('prev', 'page-numbers'), $link_class, $page);
-            }
-            elseif (strpos($page, 'next') !== false) {
-                $page = str_replace(array('next', 'page-numbers'), $link_class, $page);
-            }
-            else {
-                $page = str_replace('page-numbers', $link_class, $page);
-            }
-            
-            $pagination .= '<li class="' . esc_attr($li_class) . '">' . $page . '</li>';
-        }
-        
-        $pagination .= '</ul></nav>';
-        
-        echo $pagination;
-    }
-}
-
-
-
 /**
  * Calculates human-readable duration between two dates
  * 
@@ -800,6 +723,7 @@ function display_job_applications_page() {
                 <th>' . esc_html__('Job ID', 'text-domain') . '</th>
                 <th>' . esc_html__('Job Title', 'text-domain') . '</th>
                 <th>' . esc_html__('Applications', 'text-domain') . '</th>
+                <th>' . esc_html__('Status', 'text-domain') . '</th>
                 <th>' . esc_html__('Action', 'text-domain') . '</th>
             </tr>
           </thead><tbody>';
@@ -817,11 +741,17 @@ function display_job_applications_page() {
             ),
             admin_url('admin.php')
         );
-
+        $deadline = get_post_meta($job->ID, '_job_deadline', true);
+        if($deadline >= date('Y-m-d')){
+            $job_status = 'Active';
+        } else {
+            $job_status = 'Expired';
+        }      
         echo '<tr>
                 <td>' . esc_html($job->ID) . '</td>
                 <td>' . esc_html($job->post_title) . '</td>
                 <td>' . esc_html($count) . '</td>
+                <td>' . esc_html($job_status) . '</td>
                 <td><a class="button button-primary" href="' . esc_url($view_link) . '">' . esc_html__('View Applications', 'text-domain') . '</a></td>
               </tr>';
     }
@@ -831,6 +761,130 @@ function display_job_applications_page() {
 
 
 
+
+// Define helper functions outside of the main function
+if (!function_exists('parse_user_skills')) {
+    function parse_user_skills($skills_data) {
+        $skills = array();
+        
+        // If it's already an array, use it directly
+        if (is_array($skills_data)) {
+            // If it's a multi-dimensional array, flatten it
+            foreach ($skills_data as $item) {
+                if (is_array($item)) {
+                    // If it's an array of strings, add each string
+                    foreach ($item as $sub_item) {
+                        if (is_string($sub_item)) {
+                            $individual_skills = array_map('trim', explode(',', $sub_item));
+                            $skills = array_merge($skills, $individual_skills);
+                        }
+                    }
+                } elseif (is_string($item)) {
+                    $individual_skills = array_map('trim', explode(',', $item));
+                    $skills = array_merge($skills, $individual_skills);
+                }
+            }
+        } elseif (is_string($skills_data)) {
+            // Check if it's a serialized array
+            $unserialized_data = @unserialize($skills_data);
+            if ($unserialized_data !== false && is_array($unserialized_data)) {
+                // It's a serialized array, process it
+                foreach ($unserialized_data as $item) {
+                    if (is_array($item)) {
+                        foreach ($item as $sub_item) {
+                            if (is_string($sub_item)) {
+                                $individual_skills = array_map('trim', explode(',', $sub_item));
+                                $skills = array_merge($skills, $individual_skills);
+                            }
+                        }
+                    } elseif (is_string($item)) {
+                        $individual_skills = array_map('trim', explode(',', $item));
+                        $skills = array_merge($skills, $individual_skills);
+                    }
+                }
+            } else {
+                // It's a simple string, not serialized
+                $skills = array_map('trim', explode(',', $skills_data));
+            }
+        }
+        
+        // Remove empty values and return
+        return array_filter($skills);
+    }
+}
+
+if (!function_exists('calculate_age')) {
+    function calculate_age($date_of_birth) {
+        if (empty($date_of_birth)) {
+            return 0;
+        }
+        
+        try {
+            // Try to create DateTime object from various possible formats
+            $birth_date = new DateTime($date_of_birth);
+            $today = new DateTime();
+            return $birth_date->diff($today)->y;
+        } catch (Exception $e) {
+            // If DateTime fails, try to parse common formats manually
+            $formats = array(
+                'Y-m-d', 'm/d/Y', 'd/m/Y', 'Y/m/d', 'd-m-Y', 
+                'F j, Y', 'M j, Y', 'j F, Y', 'j M, Y'
+            );
+            
+            foreach ($formats as $format) {
+                try {
+                    $birth_date = DateTime::createFromFormat($format, $date_of_birth);
+                    if ($birth_date) {
+                        $today = new DateTime();
+                        return $birth_date->diff($today)->y;
+                    }
+                } catch (Exception $e) {
+                    continue;
+                }
+            }
+            
+            return 0; // Return 0 if all parsing attempts fail
+        }
+    }
+}
+
+if (!function_exists('calculate_total_experience_months')) {
+    function calculate_total_experience_months($work_experience) {
+        if (!is_array($work_experience)) {
+            $work_experience = maybe_unserialize($work_experience);
+        }
+        
+        if (!is_array($work_experience)) {
+            return 0;
+        }
+        
+        $total_months = 0;
+        foreach ($work_experience as $entry) {
+            if (!isset($entry['start_date']) || empty($entry['start_date'])) {
+                continue;
+            }
+            
+            try {
+                $start_date = new DateTime($entry['start_date']);
+                
+                if (isset($entry['end_date']) && !empty($entry['end_date']) && strtolower($entry['end_date']) !== 'present') {
+                    $end_date = new DateTime($entry['end_date']);
+                } else {
+                    $end_date = new DateTime(); // current date for ongoing jobs
+                }
+                
+                $interval = $start_date->diff($end_date);
+                $months = $interval->y * 12 + $interval->m;
+                $total_months += $months;
+            } catch (Exception $e) {
+                // Skip invalid dates
+                continue;
+            }
+        }
+        
+        return $total_months;
+    }
+}
 
 function view_job_applications_page() {
     // Add this right after wp_localize_script
@@ -882,7 +936,7 @@ function view_job_applications_page() {
     </div>
    <?php 
     // Pagination setup
-    $per_page = 20;
+    $per_page = 50;
     $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $offset = ($current_page - 1) * $per_page;
     
@@ -901,6 +955,13 @@ function view_job_applications_page() {
     // Get experience range values
     $min_experience = isset($_GET['min_experience']) ? intval($_GET['min_experience']) : 0;
     $max_experience = isset($_GET['max_experience']) ? intval($_GET['max_experience']) : 20;
+    
+    // Get date range filter values
+    $application_date_from = isset($_GET['application_date_from']) ? sanitize_text_field($_GET['application_date_from']) : '';
+    $application_date_to = isset($_GET['application_date_to']) ? sanitize_text_field($_GET['application_date_to']) : '';
+    
+    // Get skills filter values
+    $skills = isset($_GET['skills']) ? array_map('sanitize_text_field', (array)$_GET['skills']) : array();
     
     // Get status counts
     $applications_table = $wpdb->prefix . 'job_applications';
@@ -935,7 +996,7 @@ function view_job_applications_page() {
     // Join clauses for usermeta
     $joins = array();
     
-    // Add filters to the query
+    // Add filters to the query (basic ones that can be done in SQL)
     if (!empty($user_present_district)) {
         $joins[] = "LEFT JOIN {$usermeta_table} pd ON pd.user_id = ja.user_id AND pd.meta_key = 'presentcity'";
         $where .= " AND pd.meta_value = %s";
@@ -955,23 +1016,6 @@ function view_job_applications_page() {
         $prepare_values[] = '%' . $wpdb->esc_like($highest_education) . '%';
     }
     
-    // Add age filter
-    if (!empty($min_age) || !empty($max_age)) {
-        $joins[] = "LEFT JOIN {$usermeta_table} dob ON dob.user_id = ja.user_id AND dob.meta_key = 'date_of_birth'";
-        
-        if (!empty($min_age) && !empty($max_age)) {
-            $where .= " AND TIMESTAMPDIFF(YEAR, dob.meta_value, CURDATE()) BETWEEN %d AND %d";
-            $prepare_values[] = $min_age;
-            $prepare_values[] = $max_age;
-        } elseif (!empty($min_age)) {
-            $where .= " AND TIMESTAMPDIFF(YEAR, dob.meta_value, CURDATE()) >= %d";
-            $prepare_values[] = $min_age;
-        } elseif (!empty($max_age)) {
-            $where .= " AND TIMESTAMPDIFF(YEAR, dob.meta_value, CURDATE()) <= %d";
-            $prepare_values[] = $max_age;
-        }
-    }
-    
     // Add gender filter
     if (!empty($gender)) {
         $joins[] = "LEFT JOIN {$usermeta_table} g ON g.user_id = ja.user_id AND g.meta_key = 'gender'";
@@ -985,16 +1029,35 @@ function view_job_applications_page() {
         $prepare_values[] = $current_status;
     }
     
+    // Add application date range filter
+    if (!empty($application_date_from) || !empty($application_date_to)) {
+        if (!empty($application_date_from) && !empty($application_date_to)) {
+            $where .= " AND DATE(ja.applied_at) BETWEEN %s AND %s";
+            $prepare_values[] = $application_date_from;
+            $prepare_values[] = $application_date_to;
+        } elseif (!empty($application_date_from)) {
+            $where .= " AND DATE(ja.applied_at) >= %s";
+            $prepare_values[] = $application_date_from;
+        } elseif (!empty($application_date_to)) {
+            $where .= " AND DATE(ja.applied_at) <= %s";
+            $prepare_values[] = $application_date_to;
+        }
+    }
+    
     // Combine all joins
     $join_clause = implode(' ', $joins);
     
-    // Get all application IDs that match the other filters first
+    // Get all application IDs that match the basic filters first
     $query_ids = "SELECT DISTINCT ja.id FROM {$applications_table} ja {$join_clause} {$where}";
     $all_app_ids = $wpdb->get_col($wpdb->prepare($query_ids, $prepare_values));
     
-    // Filter by experience in PHP
+    // Filter by skills, experience and age in PHP
     $filtered_app_ids = array();
-    if ($min_experience > 0 || $max_experience < 20) {
+    $filter_by_skills = !empty($skills);
+    $filter_by_experience = ($min_experience > 0 || $max_experience < 20);
+    $filter_by_age = (!empty($min_age) || !empty($max_age));
+    
+    if ($filter_by_skills || $filter_by_experience || $filter_by_age) {
         foreach ($all_app_ids as $app_id) {
             // Get user ID for this application
             $user_id = $wpdb->get_var($wpdb->prepare(
@@ -1002,15 +1065,51 @@ function view_job_applications_page() {
                 $app_id
             ));
             
-            if ($user_id) {
-                // Get work experience data
+            if (!$user_id) {
+                continue;
+            }
+            
+            // Check skills filter
+            $include_by_skills = true;
+            if ($filter_by_skills) {
+                $user_skills_raw = get_user_meta($user_id, 'skills', true);
+                $user_skills = parse_user_skills($user_skills_raw);
+                
+                // Check if any of the selected skills are in the user's skills
+                $match_found = false;
+                foreach ($skills as $skill) {
+                    if (in_array($skill, $user_skills)) {
+                        $match_found = true;
+                        break;
+                    }
+                }
+                $include_by_skills = $match_found;
+            }
+            
+            // Check experience filter
+            $include_by_experience = true;
+            if ($filter_by_experience) {
                 $work_experience = get_user_meta($user_id, 'work_experience', true);
                 $total_months = calculate_total_experience_months($work_experience);
+                $include_by_experience = ($total_months >= ($min_experience * 12) && $total_months <= ($max_experience * 12));
+            }
+            
+            // Check age filter
+            $include_by_age = true;
+            if ($filter_by_age) {
+                $date_of_birth = get_user_meta($user_id, 'date_of_birth', true);
+                $age = calculate_age($date_of_birth);
                 
-                // Check if experience is within range
-                if ($total_months >= ($min_experience * 12) && $total_months <= ($max_experience * 12)) {
-                    $filtered_app_ids[] = $app_id;
+                if (!empty($min_age) && $age < $min_age) {
+                    $include_by_age = false;
                 }
+                if (!empty($max_age) && $age > $max_age) {
+                    $include_by_age = false;
+                }
+            }
+            
+            if ($include_by_skills && $include_by_experience && $include_by_age) {
+                $filtered_app_ids[] = $app_id;
             }
         }
         $all_app_ids = $filtered_app_ids;
@@ -1175,9 +1274,59 @@ function view_job_applications_page() {
                     </div>
                 </div>
                 
+                <!-- Application Date Range Filter -->
+                <div class="filter-group">
+                    <label class="filter-label"><?php _e('Application Date Range', 'text-domain'); ?></label>
+                    <div class="date-range-simple">
+                        <div class="date-input-row">
+                            <label for="application_date_from"><?php _e('From', 'text-domain'); ?></label>
+                            <input type="date" id="application_date_from" name="application_date_from" 
+                                   value="<?php echo isset($_GET['application_date_from']) ? esc_attr($_GET['application_date_from']) : ''; ?>">
+                        </div>
+                        <div class="date-input-row">
+                            <label for="application_date_to"><?php _e('To', 'text-domain'); ?></label>
+                            <input type="date" id="application_date_to" name="application_date_to" 
+                                   value="<?php echo isset($_GET['application_date_to']) ? esc_attr($_GET['application_date_to']) : ''; ?>">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="skills"><?php _e('Skills', 'text-domain'); ?></label>
+                    <div class="skills-filter-container">
+                        <select name="skills[]" id="skills" multiple>
+                            <option value=""><?php _e('Select Skills', 'text-domain'); ?></option>
+                            <?php
+                            global $wpdb;
+                            $all_skills = array();
+                            // Get all skills meta values directly from the database
+                            $skills_meta = $wpdb->get_results(
+                                "SELECT meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'skills'"
+                            );
+                            foreach ($skills_meta as $meta) {
+                                $user_skills = parse_user_skills($meta->meta_value);
+                                
+                                // Add to our master list
+                                $all_skills = array_merge($all_skills, $user_skills);
+                            }
+                            // Clean up and deduplicate
+                            $all_skills = array_unique($all_skills);
+                            $all_skills = array_filter($all_skills); // Remove any empty values
+                            sort($all_skills);
+                            $selected_skills = isset($_GET['skills']) ? (array)$_GET['skills'] : array();
+                            foreach ($all_skills as $skill): ?>
+                                <option value="<?php echo esc_attr($skill); ?>"
+                                    <?php echo in_array($skill, $selected_skills) ? 'selected' : ''; ?>>
+                                    <?php echo esc_html($skill); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                
                 <div class="filter-actions">
-                    <button type="submit" class="button button-primary"><?php _e('Apply Filters', 'text-domain'); ?></button>
-                    <a href="<?php echo esc_url($base_url); ?>" class="button" style="text-align: center;"><?php _e('Reset Filters', 'text-domain'); ?></a>
+                    <button type="submit" class="button button-primary btn-apply"><?php _e('Apply Filters', 'text-domain'); ?></button>
+                    <a href="<?php echo esc_url($base_url); ?>" class="button btn-reset" style="text-align: center;"><?php _e('Reset Filters', 'text-domain'); ?></a>
                 </div>
             </form>
         </div>
@@ -1295,6 +1444,17 @@ function view_job_applications_page() {
                     <?php endif; ?>
                     <?php if (!empty($max_experience)): ?>
                         <input type="hidden" name="max_experience" value="<?php echo esc_attr($max_experience); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($application_date_from)): ?>
+                        <input type="hidden" name="application_date_from" value="<?php echo esc_attr($application_date_from); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($application_date_to)): ?>
+                        <input type="hidden" name="application_date_to" value="<?php echo esc_attr($application_date_to); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($skills)): ?>
+                        <?php foreach ($skills as $skill): ?>
+                            <input type="hidden" name="skills[]" value="<?php echo esc_attr($skill); ?>">
+                        <?php endforeach; ?>
                     <?php endif; ?>
                     
                     <div class="filter-group">
@@ -1433,6 +1593,10 @@ function view_job_applications_page() {
                     // Get application status and check if interview date is passed
                     $status = isset($app->status) ? $app->status : 'new';
                     $interview_passed = !empty($app->interview_date) && strtotime($app->interview_date) < current_time('timestamp');
+                    $app_profile_picture = get_user_meta($app->user_id, 'profile_picture', true);
+                    if (empty($app_profile_picture)) {
+                        $app_profile_picture = get_avatar_url($app->user_id, array('size' => 150));
+                    }
                 ?>
                 <div class="applicant-card" id="applicant-<?php echo esc_attr($app->id); ?>" data-application-id="<?php echo esc_attr($app->id); ?>" data-experience-months="<?php echo esc_attr($data_experience); ?>">
                     <!-- Checkbox for bulk selection -->
@@ -1441,7 +1605,7 @@ function view_job_applications_page() {
                     </div>
                     
                     <div class="applicant-avatar">
-                        <img src="<?php echo esc_url(get_avatar_url($app->user_id)); ?>" alt="<?php echo esc_attr($app->full_name); ?>" class="avatar-image">
+                        <img src="<?php echo esc_url($app_profile_picture); ?>" alt="<?php echo esc_attr($app->full_name); ?>" class="avatar-image">
                     </div>
                     
                     <div class="applicant-info">
@@ -1699,19 +1863,7 @@ function view_job_applications_page() {
                         'prev_text' => __('&laquo; Previous', 'text-domain'),
                         'next_text' => __('Next &raquo;', 'text-domain'),
                         'total' => $total_pages,
-                        'current' => $current_page,
-                        'add_args' => array(
-                            'present_district' => $user_present_district,
-                            'permanent_district' => $user_permanent_district,
-                            'highest_education' => $highest_education,
-                            'experience_years' => $experience_years,
-                            'min_age' => $min_age,
-                            'max_age' => $max_age,
-                            'gender' => $gender,
-                            'status' => $current_status,
-                            'min_experience' => $min_experience,
-                            'max_experience' => $max_experience
-                        )
+                        'current' => $current_page
                     );
                     
                     echo paginate_links($pagination_args);
@@ -1733,7 +1885,8 @@ function view_job_applications_page() {
             <?php endif; ?>
         </div>
     </div>
-        <script>
+    
+    <script>
     jQuery(document).ready(function($) {
         // Age slider functionality
         const ageSlider = document.querySelector('.age-slider');
@@ -1759,7 +1912,6 @@ function view_job_applications_page() {
                 if (minVal > maxVal) minVal = maxVal;
                 minInput.value = minVal;
                 minDisplay.textContent = minVal;
-                updateSlider();
             });
             
             maxThumb.addEventListener('input', function() {
@@ -1767,12 +1919,7 @@ function view_job_applications_page() {
                 if (maxVal < minVal) maxVal = minVal;
                 maxInput.value = maxVal;
                 maxDisplay.textContent = maxVal;
-                updateSlider();
             });
-            
-            function updateSlider() {
-                // Add your slider update logic here
-            }
         }
         
         // Experience slider functionality
@@ -1799,7 +1946,6 @@ function view_job_applications_page() {
                 if (minVal > maxVal) minVal = maxVal;
                 minInput.value = minVal;
                 minDisplay.textContent = minVal + ' years';
-                updateSlider();
             });
             
             maxThumb.addEventListener('input', function() {
@@ -1807,12 +1953,7 @@ function view_job_applications_page() {
                 if (maxVal < minVal) maxVal = minVal;
                 maxInput.value = maxVal;
                 maxDisplay.textContent = maxVal + '+ years';
-                updateSlider();
             });
-            
-            function updateSlider() {
-                // Add your slider update logic here
-            }
         }
         
         // Auto-submit status filter when changed
@@ -1821,7 +1962,8 @@ function view_job_applications_page() {
         });
     });
     </script>
-        <?php
+    
+    <?php
     echo '</div>';
 }
 // Helper functions to get filter options
@@ -1971,32 +2113,34 @@ function mark_all_notifications_read() {
 
 
 // Add settings submenu
-function add_job_applications_settings_menu() {
+function add_job_applications_email_settings_menu() {
     add_submenu_page(
         'edit.php?post_type=job',          // Parent slug
-        'Application Settings',      // Page title
-        'Settings',                  // Menu title
+        'Email Settings',      // Page title
+        'Email Templates',                  // Menu title
         'manage_options',            // Capability
-        'job_applications_settings', // Menu slug
-        'job_applications_settings_page' // Callback function
+        'job_applications_email_settings', // Menu slug
+        'job_applications_email_settings_page' // Callback function
     );
 }
-add_action('admin_menu', 'add_job_applications_settings_menu');
+add_action('admin_menu', 'add_job_applications_email_settings_menu');
 
-// Register settings
+
+
 function job_applications_register_settings() {
-    register_setting('job_applications_email_settings', 'interview_scheduled_email');
-    register_setting('job_applications_email_settings', 'interview_rescheduled_email');
-    register_setting('job_applications_email_settings', 'application_shortlisted_email');
-    register_setting('job_applications_email_settings', 'application_rejected_email');
+    // Register each option with its own group
+    register_setting('interview_scheduled_group', 'interview_scheduled_email');
+    register_setting('interview_rescheduled_group', 'interview_rescheduled_email');
+    register_setting('application_shortlisted_group', 'application_shortlisted_email');
+    register_setting('application_rejected_group', 'application_rejected_email');
 }
 add_action('admin_init', 'job_applications_register_settings');
 
+
 // Settings page callback with navigation tabs
-function job_applications_settings_page() {
+function job_applications_email_settings_page() {
     // Get the current tab
     $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'interview-scheduled';
-    
     ?>
     <div class="wrap">
         <h1>Job Application Settings</h1>
@@ -2004,10 +2148,10 @@ function job_applications_settings_page() {
         <?php
         // Navigation tabs
         $tabs = array(
-            'interview-scheduled' => 'Interview Scheduled',
+            'interview-scheduled'   => 'Interview Scheduled',
             'interview-rescheduled' => 'Interview Rescheduled',
             'application-shortlisted' => 'Application Shortlisted',
-            'application-rejected' => 'Application Rejected'
+            'application-rejected'  => 'Application Rejected'
         );
         
         echo '<nav class="nav-tab-wrapper">';
@@ -2015,13 +2159,12 @@ function job_applications_settings_page() {
             $url = add_query_arg(
                 array(
                     'page' => 'job_applications_settings',
-                    'tab' => $tab_id
+                    'tab'  => $tab_id
                 ),
                 admin_url('admin.php')
             );
             
             $active_class = ($current_tab === $tab_id) ? 'nav-tab-active' : '';
-            
             echo '<a href="' . esc_url($url) . '" class="nav-tab ' . esc_attr($active_class) . '">' . esc_html($tab_name) . '</a>';
         }
         echo '</nav>';
@@ -2032,21 +2175,20 @@ function job_applications_settings_page() {
                 ?>
                 <div class="tab-content">
                     <form method="post" action="options.php">
-                        <?php settings_fields('job_applications_email_settings'); ?>
-                        
+                        <?php settings_fields('interview_scheduled_group'); ?>
                         <h2>Interview Scheduled Email</h2>
                         <p>Customize the email sent to applicants when an interview is scheduled.</p>
-                        
                         <table class="form-table">
                             <tr>
                                 <th scope="row">Email Body</th>
                                 <td>
-                                    <textarea name="interview_scheduled_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('interview_scheduled_email', get_default_interview_scheduled_email())); ?></textarea>
+                                    <textarea name="interview_scheduled_email" rows="10" class="large-text"><?php 
+                                        echo esc_textarea( get_option('interview_scheduled_email', get_default_interview_scheduled_email()) ); 
+                                    ?></textarea>
                                     <p class="description">Available placeholders: {name}, {job_title}, {interview_date}, {location}, {notes}</p>
                                 </td>
                             </tr>
                         </table>
-                        
                         <?php submit_button(); ?>
                     </form>
                 </div>
@@ -2057,21 +2199,20 @@ function job_applications_settings_page() {
                 ?>
                 <div class="tab-content">
                     <form method="post" action="options.php">
-                        <?php settings_fields('job_applications_email_settings'); ?>
-                        
+                        <?php settings_fields('interview_rescheduled_group'); ?>
                         <h2>Interview Rescheduled Email</h2>
                         <p>Customize the email sent to applicants when an interview is rescheduled.</p>
-                        
                         <table class="form-table">
                             <tr>
                                 <th scope="row">Email Body</th>
                                 <td>
-                                    <textarea name="interview_rescheduled_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('interview_rescheduled_email', get_default_interview_rescheduled_email())); ?></textarea>
+                                    <textarea name="interview_rescheduled_email" rows="10" class="large-text"><?php 
+                                        echo esc_textarea( get_option('interview_rescheduled_email', get_default_interview_rescheduled_email()) ); 
+                                    ?></textarea>
                                     <p class="description">Available placeholders: {name}, {job_title}, {interview_date}, {location}, {notes}</p>
                                 </td>
                             </tr>
                         </table>
-                        
                         <?php submit_button(); ?>
                     </form>
                 </div>
@@ -2082,21 +2223,20 @@ function job_applications_settings_page() {
                 ?>
                 <div class="tab-content">
                     <form method="post" action="options.php">
-                        <?php settings_fields('job_applications_email_settings'); ?>
-                        
+                        <?php settings_fields('application_shortlisted_group'); ?>
                         <h2>Application Shortlisted Email</h2>
                         <p>Customize the email sent to applicants when their application is shortlisted.</p>
-                        
                         <table class="form-table">
                             <tr>
                                 <th scope="row">Email Body</th>
                                 <td>
-                                    <textarea name="application_shortlisted_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('application_shortlisted_email', get_default_application_shortlisted_email())); ?></textarea>
+                                    <textarea name="application_shortlisted_email" rows="10" class="large-text"><?php 
+                                        echo esc_textarea( get_option('application_shortlisted_email', get_default_application_shortlisted_email()) ); 
+                                    ?></textarea>
                                     <p class="description">Available placeholders: {name}, {job_title}</p>
                                 </td>
                             </tr>
                         </table>
-                        
                         <?php submit_button(); ?>
                     </form>
                 </div>
@@ -2107,21 +2247,20 @@ function job_applications_settings_page() {
                 ?>
                 <div class="tab-content">
                     <form method="post" action="options.php">
-                        <?php settings_fields('job_applications_email_settings'); ?>
-                        
+                        <?php settings_fields('application_rejected_group'); ?>
                         <h2>Application Rejected Email</h2>
                         <p>Customize the email sent to applicants when their application is rejected.</p>
-                        
                         <table class="form-table">
                             <tr>
                                 <th scope="row">Email Body</th>
                                 <td>
-                                    <textarea name="application_rejected_email" rows="10" class="large-text"><?php echo esc_textarea(get_option('application_rejected_email', get_default_application_rejected_email())); ?></textarea>
+                                    <textarea name="application_rejected_email" rows="10" class="large-text"><?php 
+                                        echo esc_textarea( get_option('application_rejected_email', get_default_application_rejected_email()) ); 
+                                    ?></textarea>
                                     <p class="description">Available placeholders: {name}, {job_title}</p>
                                 </td>
                             </tr>
                         </table>
-                        
                         <?php submit_button(); ?>
                     </form>
                 </div>
@@ -2135,7 +2274,6 @@ function job_applications_settings_page() {
     .nav-tab-wrapper {
         margin: 1em 0;
     }
-    
     .tab-content {
         background: #fff;
         padding: 20px;
@@ -2148,204 +2286,48 @@ function job_applications_settings_page() {
 }
 
 
-// Default email templates
-function get_default_interview_scheduled_email() {
-    return "Dear {name},
 
-Your interview for the position of {job_title} has been scheduled on {interview_date}.
 
-Location: {location}
 
-{notes}
 
-Please be prepared and on time.
 
-Best regards,
-" . get_bloginfo('name');
-}
+// // Send application shortlisted email
+// function send_application_shortlisted_email($application_id) {
+//     global $wpdb;
+//     $table = $wpdb->prefix . 'job_applications';
+    
+//     // Get application and user details
+//     $application = $wpdb->get_row($wpdb->prepare(
+//         "SELECT a.*, u.user_email, u.display_name 
+//         FROM $table a 
+//         JOIN {$wpdb->users} u ON a.user_id = u.ID 
+//         WHERE a.id = %d",
+//         $application_id
+//     ));
+    
+//     if (!$application) {
+//         return false;
+//     }
+    
+//     $job_title = get_the_title($application->job_id);
+    
+//     $subject = sprintf('Application Shortlisted for %s', $job_title);
+    
+//     // Get custom email template
+//     $email_template = get_option('application_shortlisted_email', get_default_application_shortlisted_email());
+    
+//     // Replace placeholders
+//     $message = str_replace(
+//         array('{name}', '{job_title}'),
+//         array($application->display_name, $job_title),
+//         $email_template
+//     );
+    
+//     error_log('Sending shortlisted email to: ' . $application->user_email);
+//     return wp_mail($application->user_email, $subject, $message);
+// }
 
-function get_default_interview_rescheduled_email() {
-    return "Dear {name},
 
-Your interview for the position of {job_title} has been rescheduled to {interview_date}.
-
-Location: {location}
-
-{notes}
-
-Please be prepared and on time.
-
-Best regards,
-" . get_bloginfo('name');
-}
-
-function get_default_application_shortlisted_email() {
-    return "Dear {name},
-
-Your application for the position of {job_title} has been shortlisted.
-
-We will contact you soon with further details about the next steps.
-
-Best regards,
-" . get_bloginfo('name');
-}
-
-function get_default_application_rejected_email() {
-    return "Dear {name},
-
-We regret to inform you that your application for the position of {job_title} was not successful.
-
-We appreciate your interest in our organization and wish you the best in your job search.
-
-Best regards,
-" . get_bloginfo('name');
-}
-
-// Send interview scheduled email
-function send_interview_scheduled_email($application_id, $notes = '') {
-    global $wpdb;
-    $table = $wpdb->prefix . 'job_applications';
-    
-    // Get application and user details
-    $application = $wpdb->get_row($wpdb->prepare(
-        "SELECT a.*, u.user_email, u.display_name 
-        FROM $table a 
-        JOIN {$wpdb->users} u ON a.user_id = u.ID 
-        WHERE a.id = %d",
-        $application_id
-    ));
-    
-    if (!$application) {
-        return false;
-    }
-    
-    $job_title = get_the_title($application->job_id);
-    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($application->interview_date));
-    
-    $subject = sprintf('Interview Scheduled for %s', $job_title);
-    
-    // Get custom email template
-    $email_template = get_option('interview_scheduled_email', get_default_interview_scheduled_email());
-    
-    // Replace placeholders
-    $message = str_replace(
-        array('{name}', '{job_title}', '{interview_date}', '{location}', '{notes}'),
-        array($application->display_name, $job_title, $formatted_date, $application->interview_location, $notes),
-        $email_template
-    );
-    
-    error_log('Sending interview scheduled email to: ' . $application->user_email);
-    return wp_mail($application->user_email, $subject, $message);
-}
-
-// Send interview rescheduled email
-function send_interview_rescheduled_email($application_id, $notes = '') {
-    global $wpdb;
-    $table = $wpdb->prefix . 'job_applications';
-    
-    // Get application and user details
-    $application = $wpdb->get_row($wpdb->prepare(
-        "SELECT a.*, u.user_email, u.display_name 
-        FROM $table a 
-        JOIN {$wpdb->users} u ON a.user_id = u.ID 
-        WHERE a.id = %d",
-        $application_id
-    ));
-    
-    if (!$application) {
-        return false;
-    }
-    
-    $job_title = get_the_title($application->job_id);
-    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($application->interview_date));
-    
-    $subject = sprintf('Interview Rescheduled for %s', $job_title);
-    
-    // Get custom email template
-    $email_template = get_option('interview_rescheduled_email', get_default_interview_rescheduled_email());
-    
-    // Replace placeholders
-    $message = str_replace(
-        array('{name}', '{job_title}', '{interview_date}', '{location}', '{notes}'),
-        array($application->display_name, $job_title, $formatted_date, $application->interview_location, $notes),
-        $email_template
-    );
-    
-    error_log('Sending interview rescheduled email to: ' . $application->user_email);
-    return wp_mail($application->user_email, $subject, $message);
-}
-
-// Send application shortlisted email
-function send_application_shortlisted_email($application_id) {
-    global $wpdb;
-    $table = $wpdb->prefix . 'job_applications';
-    
-    // Get application and user details
-    $application = $wpdb->get_row($wpdb->prepare(
-        "SELECT a.*, u.user_email, u.display_name 
-        FROM $table a 
-        JOIN {$wpdb->users} u ON a.user_id = u.ID 
-        WHERE a.id = %d",
-        $application_id
-    ));
-    
-    if (!$application) {
-        return false;
-    }
-    
-    $job_title = get_the_title($application->job_id);
-    
-    $subject = sprintf('Application Shortlisted for %s', $job_title);
-    
-    // Get custom email template
-    $email_template = get_option('application_shortlisted_email', get_default_application_shortlisted_email());
-    
-    // Replace placeholders
-    $message = str_replace(
-        array('{name}', '{job_title}'),
-        array($application->display_name, $job_title),
-        $email_template
-    );
-    
-    error_log('Sending shortlisted email to: ' . $application->user_email);
-    return wp_mail($application->user_email, $subject, $message);
-}
-
-// Send application rejected email
-function send_application_rejected_email($application_id) {
-    global $wpdb;
-    $table = $wpdb->prefix . 'job_applications';
-    
-    // Get application and user details
-    $application = $wpdb->get_row($wpdb->prepare(
-        "SELECT a.*, u.user_email, u.display_name 
-        FROM $table a 
-        JOIN {$wpdb->users} u ON a.user_id = u.ID 
-        WHERE a.id = %d",
-        $application_id
-    ));
-    
-    if (!$application) {
-        return false;
-    }
-    
-    $job_title = get_the_title($application->job_id);
-    
-    $subject = sprintf('Application Status for %s', $job_title);
-    
-    // Get custom email template
-    $email_template = get_option('application_rejected_email', get_default_application_rejected_email());
-    
-    // Replace placeholders
-    $message = str_replace(
-        array('{name}', '{job_title}'),
-        array($application->display_name, $job_title),
-        $email_template
-    );
-    
-    error_log('Sending rejected email to: ' . $application->user_email);
-    return wp_mail($application->user_email, $subject, $message);
-}
 
 // Helper function to calculate total experience in months
 function calculate_total_experience_months($work_experience) {
@@ -2383,3 +2365,1548 @@ function calculate_total_experience_months($work_experience) {
     
     return $total_months;
 }
+
+
+// Helper function to calculate age
+function calculate_age($date_of_birth) {
+    if (empty($date_of_birth)) {
+        return 0;
+    }
+    
+    try {
+        // Try to create DateTime object from various possible formats
+        $birth_date = new DateTime($date_of_birth);
+        $today = new DateTime();
+        return $birth_date->diff($today)->y;
+    } catch (Exception $e) {
+        // If DateTime fails, try to parse common formats manually
+        $formats = array(
+            'Y-m-d', 'm/d/Y', 'd/m/Y', 'Y/m/d', 'd-m-Y', 
+            'F j, Y', 'M j, Y', 'j F, Y', 'j M, Y'
+        );
+        
+        foreach ($formats as $format) {
+            try {
+                $birth_date = DateTime::createFromFormat($format, $date_of_birth);
+                if ($birth_date) {
+                    $today = new DateTime();
+                    return $birth_date->diff($today)->y;
+                }
+            } catch (Exception $e) {
+                continue;
+            }
+        }
+        
+        return 0; // Return 0 if all parsing attempts fail
+    }
+}
+
+// Create a custom table to track search terms
+function create_search_tracking_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'job_search_terms';
+    $charset_collate = $wpdb->get_charset_collate();
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        term varchar(255) NOT NULL,
+        count int(11) NOT NULL,
+        last_searched datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY term (term)
+    ) $charset_collate;";
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+add_action('after_setup_theme', 'create_search_tracking_table');
+
+// Track search terms
+function track_job_search_term($query) {
+    // Only track searches for job post type
+    if ($query->is_main_query() && isset($_GET['keywords']) && !empty($_GET['keywords'])) {
+        $search_term = sanitize_text_field($_GET['keywords']);
+        
+        if (!empty($search_term)) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'job_search_terms';
+            
+            // Check if term already exists
+            $term_exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table_name WHERE term = %s", 
+                $search_term
+            ));
+            
+            if ($term_exists) {
+                // Update existing term
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE $table_name SET count = count + 1, last_searched = NOW() WHERE term = %s", 
+                    $search_term
+                ));
+            } else {
+                // Insert new term
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'term' => $search_term,
+                        'count' => 1,
+                        'last_searched' => current_time('mysql')
+                    )
+                );
+            }
+        }
+    }
+}
+add_action('pre_get_posts', 'track_job_search_term');
+
+// Get most searched terms
+function get_most_searched_terms($limit = 5) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'job_search_terms';
+    
+    $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT term, count FROM $table_name ORDER BY count DESC LIMIT %d", 
+        $limit
+    ));
+    
+    return $results;
+}
+
+function get_job_listing_page_link() {
+    $args = array(
+        'post_type'      => 'page',
+        'title'          => 'Job Listing',
+        'posts_per_page' => 1,
+        'post_status'    => 'publish',
+    );
+
+    $query = new WP_Query($args);
+
+    if ($query->have_posts()) {
+        $query->the_post();
+        $link = get_permalink(get_the_ID());
+        wp_reset_postdata();
+        return $link;
+    }
+
+    return ''; // return empty if not found
+}
+
+
+// Get job listing page URL - Updated version
+function get_job_listing_page_url() {
+    // Try to get the page by its template name
+    $pages = get_pages(array(
+        'meta_key' => '_wp_page_template',
+        'meta_value' => 'template-job-listing.php' // Updated to match your template filename
+    ));
+    
+    if ($pages) {
+        return get_permalink($pages[0]->ID);
+    }
+    
+    // Try alternative template name
+    $pages = get_pages(array(
+        'meta_key' => '_wp_page_template',
+        'meta_value' => 'job-listing.php'
+    ));
+    
+    if ($pages) {
+        return get_permalink($pages[0]->ID);
+    }
+    
+    // Try to get page by title if template name doesn't work
+    $page = get_job_listing_page_link();
+    if ($page) {
+        return get_permalink($page->ID);
+    }
+    
+    // Try to get page by slug
+    $page = get_page_by_path('job-listing');
+    if ($page) {
+        return get_permalink($page->ID);
+    }
+    
+    // Fallback to current URL if we're on the job listing page
+    global $wp;
+    $current_url = home_url(add_query_arg(array(), $wp->request));
+    
+    // Check if current page is using the job listing template
+    if (is_page_template('template-job-listing.php') || is_page_template('job-listing.php')) {
+        return $current_url;
+    }
+    
+    // Last resort: return home URL
+    return home_url('/');
+}
+
+// Display popular search badges - Updated version
+function display_popular_search_badges() {
+    $popular_terms = get_most_searched_terms(5);
+    
+    // Get the base job listing page URL without any query parameters
+    $base_url = get_job_listing_page_url();
+    
+    if (empty($popular_terms)) {
+        // If no tracked searches, display default terms
+        $default_terms = array(
+            'Software Engineer',
+            'Marketing',
+            'UX Designer',
+            'Remote',
+            'Full-time'
+        );
+        
+        foreach ($default_terms as $term) {
+            // Use 'keywords' parameter instead of 's' to match your form
+            $search_url = add_query_arg('keywords', $term, $base_url);
+            echo '<a href="' . esc_url($search_url) . '" class="badge bg-warning text-dark">' . esc_html($term) . '</a>';
+        }
+    } else {
+        foreach ($popular_terms as $term) {
+            // Use 'keywords' parameter instead of 's' to match your form
+            $search_url = add_query_arg('keywords', $term->term, $base_url);
+            echo '<a href="' . esc_url($search_url) . '" class="badge bg-warning text-dark">' . esc_html($term->term) . '</a>';
+        }
+    }
+}
+
+// Fix pagination for job listings
+function job_listing_pagination_with_query($query = null, $range = 2) {
+    global $wp_query;
+    
+    // Use provided query or fall back to global query
+    $query = $query ? $query : $wp_query;
+    
+    // Don't print empty markup if there's only one page
+    if ($query->max_num_pages <= 1) {
+        return;
+    }
+    
+    $paged = get_query_var('paged') ? intval(get_query_var('paged')) : 1;
+    $max   = intval($query->max_num_pages);
+    
+    // Get current URL without pagination parameters
+    $current_url = get_job_listing_page_url();
+    
+    // Build query string from current search parameters
+    $query_params = array();
+    
+    // Add keywords if present
+    if (isset($_GET['keywords']) && !empty($_GET['keywords'])) {
+        $query_params['keywords'] = sanitize_text_field($_GET['keywords']);
+    }
+    
+    // Add location if present
+    if (isset($_GET['location']) && !empty($_GET['location'])) {
+        $query_params['location'] = sanitize_text_field($_GET['location']);
+    }
+    
+    // Add job_type if present
+    if (isset($_GET['job_type']) && !empty($_GET['job_type'])) {
+        $query_params['job_type'] = sanitize_text_field($_GET['job_type']);
+    }
+    
+    // Add experience if present
+    if (isset($_GET['experience']) && !empty($_GET['experience'])) {
+        $query_params['experience'] = sanitize_text_field($_GET['experience']);
+    }
+    
+    // Add industry if present
+    if (isset($_GET['industry']) && !empty($_GET['industry'])) {
+        $query_params['industry'] = sanitize_text_field($_GET['industry']);
+    }
+    
+    // Start building pagination HTML
+    $pagination = '<nav aria-label="Job listings pagination">';
+    $pagination .= '<ul class="pagination justify-content-center mt-4">';
+    
+    // Previous button
+    $prev_disabled = ($paged <= 1) ? 'disabled' : '';
+    $prev_page = $paged - 1;
+    $prev_query_params = $query_params;
+    if ($prev_page > 1) {
+        $prev_query_params['paged'] = $prev_page;
+    }
+    $prev_link = add_query_arg($prev_query_params, $current_url);
+    $pagination .= '<li class="page-item ' . $prev_disabled . '">';
+    $pagination .= '<a class="page-link" href="' . esc_url($prev_link) . '" tabindex="-1" aria-disabled="' . ($paged <= 1 ? 'true' : 'false') . '">Previous</a>';
+    $pagination .= '</li>';
+    
+    // Page numbers
+    for ($i = 1; $i <= $max; $i++) {
+        // Show limited page numbers with range
+        if ($i == 1 || $i == $max || ($i >= $paged - $range && $i <= $paged + $range)) {
+            $active = ($i == $paged) ? 'active' : '';
+            $page_query_params = $query_params;
+            if ($i > 1) {
+                $page_query_params['paged'] = $i;
+            }
+            $link = add_query_arg($page_query_params, $current_url);
+            $pagination .= '<li class="page-item ' . $active . '">';
+            $pagination .= '<a class="page-link" href="' . esc_url($link) . '">' . $i . '</a>';
+            $pagination .= '</li>';
+        } elseif ($i == $paged - $range - 1 || $i == $paged + $range + 1) {
+            // Add ellipsis for skipped pages
+            $pagination .= '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    // Next button
+    $next_disabled = ($paged >= $max) ? 'disabled' : '';
+    $next_page = $paged + 1;
+    $next_query_params = $query_params;
+    $next_query_params['paged'] = $next_page;
+    $next_link = add_query_arg($next_query_params, $current_url);
+    $pagination .= '<li class="page-item ' . $next_disabled . '">';
+    $pagination .= '<a class="page-link" href="' . esc_url($next_link) . '">Next</a>';
+    $pagination .= '</li>';
+    
+    $pagination .= '</ul>';
+    $pagination .= '</nav>';
+    
+    echo $pagination;
+}
+
+
+/**
+ * Redirect after login
+ */
+function custom_login_redirect($redirect_to, $request, $user) {
+    // Check if user has a specific role
+    if (isset($user->roles) && is_array($user->roles)) {
+        // Redirect to user profile page for all roles
+        return home_url('/user-profile');
+    }
+    
+    // Default redirect
+    return $redirect_to;
+}
+add_filter('login_redirect', 'custom_login_redirect', 10, 3);
+
+
+/**
+ * Redirect default WordPress login to custom login page
+ */
+function redirect_to_custom_login() {
+    // Check if we're on the default login page
+    if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+        return; // Don't redirect logout requests
+    }
+    
+    // Check if we're on the default login page
+    if ($GLOBALS['pagenow'] === 'wp-login.php' && !is_user_logged_in()) {
+        // Get the URL of your custom login page
+        $custom_login_url = get_permalink(get_page_by_path('login'));
+        
+        // If we can't find the page by path, try to find it by template
+        if (!$custom_login_url) {
+            $login_page = get_pages(array(
+                'meta_key' => '_wp_page_template',
+                'meta_value' => 'template-login.php'
+            ));
+            
+            if ($login_page) {
+                $custom_login_url = get_permalink($login_page[0]->ID);
+            } else {
+                $custom_login_url = home_url('/login'); // Fallback
+            }
+        }
+        
+        // Preserve any redirect_to parameter
+        $redirect_to = isset($_GET['redirect_to']) ? $_GET['redirect_to'] : '';
+        
+        // Build the redirect URL
+        $redirect_url = $redirect_to ? add_query_arg('redirect_to', $redirect_to, $custom_login_url) : $custom_login_url;
+        
+        wp_redirect($redirect_url);
+        exit;
+    }
+}
+add_action('init', 'redirect_to_custom_login');
+
+
+// /**
+//  * Custom logout redirect
+//  */
+// function custom_logout_redirect() {
+//     $custom_login_url = get_permalink(get_page_by_path('login'));
+    
+//     // If we can't find the page by path, try to find it by template
+//     if (!$custom_login_url) {
+//         $login_page = get_pages(array(
+//             'meta_key' => '_wp_page_template',
+//             'meta_value' => 'template-login.php'
+//         ));
+        
+//         if ($login_page) {
+//             $custom_login_url = get_permalink($login_page[0]->ID);
+//         } else {
+//             $custom_login_url = home_url('/login'); // Fallback
+//         }
+//     }
+    
+//     wp_redirect($custom_login_url . '?logged_out=true');
+//     exit;
+// }
+// add_action('wp_logout', 'custom_logout_redirect');
+
+
+// /**
+//  * Replace default login URL with custom login URL
+//  */
+// function custom_login_url($login_url, $redirect) {
+//     $custom_login_url = get_permalink(get_page_by_path('login'));
+    
+//     // If we can't find the page by path, try to find it by template
+//     if (!$custom_login_url) {
+//         $login_page = get_pages(array(
+//             'meta_key' => '_wp_page_template',
+//             'meta_value' => 'template-login.php'
+//         ));
+        
+//         if ($login_page) {
+//             $custom_login_url = get_permalink($login_page[0]->ID);
+//         } else {
+//             $custom_login_url = home_url('/login'); // Fallback
+//         }
+//     }
+    
+//     // Add redirect parameter if needed
+//     if (!empty($redirect)) {
+//         $custom_login_url = add_query_arg('redirect_to', urlencode($redirect), $custom_login_url);
+//     }
+    
+//     return $custom_login_url;
+// }
+// add_filter('login_url', 'custom_login_url', 10, 2);
+
+// /**
+//  * Replace logout URL
+//  */
+// function custom_logout_url($logout_url, $redirect) {
+//     $custom_login_url = get_permalink(get_page_by_path('login'));
+    
+//     // If we can't find the page by path, try to find it by template
+//     if (!$custom_login_url) {
+//         $login_page = get_pages(array(
+//             'meta_key' => '_wp_page_template',
+//             'meta_value' => 'template-login.php'
+//         ));
+        
+//         if ($login_page) {
+//             $custom_login_url = get_permalink($login_page[0]->ID);
+//         } else {
+//             $custom_login_url = home_url('/login'); // Fallback
+//         }
+//     }
+    
+//     // Build logout URL
+//     $args = array('action' => 'logout');
+//     if (!empty($redirect)) {
+//         $args['redirect_to'] = urlencode($redirect);
+//     } else {
+//         $args['redirect_to'] = urlencode($custom_login_url);
+//     }
+    
+//     $logout_url = add_query_arg($args, wp_nonce_url($custom_login_url, 'log-out'));
+    
+//     return $logout_url;
+// }
+// add_filter('logout_url', 'custom_logout_url', 10, 2);
+
+// /**
+//  * Replace register URL
+//  */
+// function custom_register_url($register_url) {
+//     // If you have a custom registration page, you can redirect there
+//     // Otherwise, use the default WordPress registration
+//     return wp_registration_url();
+// }
+// add_filter('register_url', 'custom_register_url');
+
+// /**
+//  * Replace lost password URL
+//  */
+// function custom_lostpassword_url($lostpassword_url) {
+//     // You can create a custom lost password page if you want
+//     // For now, we'll use the default WordPress lost password page
+//     return wp_lostpassword_url();
+// }
+// add_filter('lostpassword_url', 'custom_lostpassword_url');
+
+
+// /**
+//  * Block direct access to wp-login.php
+//  */
+// function block_wp_login() {
+//     // Check if we're on the default login page
+//     if ($GLOBALS['pagenow'] === 'wp-login.php' && !is_user_logged_in()) {
+//         // Get the URL of your custom login page
+//         $custom_login_url = get_permalink(get_page_by_path('login'));
+        
+//         // If we can't find the page by path, try to find it by template
+//         if (!$custom_login_url) {
+//             $login_page = get_pages(array(
+//                 'meta_key' => '_wp_page_template',
+//                 'meta_value' => 'template-login.php'
+//             ));
+            
+//             if ($login_page) {
+//                 $custom_login_url = get_permalink($login_page[0]->ID);
+//             } else {
+//                 $custom_login_url = home_url('/login'); // Fallback
+//             }
+//         }
+        
+//         // Set status header
+//         status_header(403);
+        
+//         // Display an error message
+//         wp_die(
+//             __('For security reasons, direct access to the login page is disabled. Please use the <a href="' . esc_url($custom_login_url) . '">custom login page</a> to log in.', 'job-listing'),
+//             __('Access Denied', 'job-listing'),
+//             403
+//         );
+//     }
+// }
+// // Use a higher priority to make sure this runs after other functions
+// add_action('init', 'block_wp_login', 999);
+
+
+
+// Redirect wp-login.php to custom login page
+function jl_redirect_to_custom_login() {
+    $login_page  = home_url('/login/');
+    $page_viewed = basename($_SERVER['REQUEST_URI']);
+
+    // Redirect if user tries to access wp-login.php directly
+    if ($page_viewed == "wp-login.php" && $_SERVER['REQUEST_METHOD'] == 'GET') {
+        wp_redirect($login_page);
+        exit;
+    }
+}
+add_action('init', 'jl_redirect_to_custom_login');
+
+
+function jl_login_url($login_url, $redirect, $force_reauth) {
+    $login_page = home_url('/login/');
+    if (!empty($redirect)) {
+        $login_page = add_query_arg('redirect_to', urlencode($redirect), $login_page);
+    }
+    return $login_page;
+}
+add_filter('login_url', 'jl_login_url', 10, 3);
+
+
+/**
+ * Register navigation menus
+ */
+function job_listing_theme_register_menus() {
+    register_nav_menus(
+        array(
+            'user-profile-menu' => __('User Profile Menu', 'job-listing')
+        )
+    );
+}
+add_action('init', 'job_listing_theme_register_menus');
+
+
+/**
+ * Custom Walker for User Profile Dropdown Menu
+ */
+class User_Profile_Menu_Walker extends Walker_Nav_Menu {
+    function start_lvl(&$output, $depth = 0, $args = array()) {
+        // Don't output the <ul> wrapper for submenus since we don't have any
+    }
+    
+    function end_lvl(&$output, $depth = 0, $args = array()) {
+        // Don't close the <ul> wrapper for submenus
+    }
+    
+    function start_el(&$output, $item, $depth = 0, $args = array(), $id = 0) {
+        // Get the original classes
+        $classes = empty($item->classes) ? array() : (array) $item->classes;
+        
+        // Remove the dropdown-item class if it exists
+        $classes = array_diff($classes, array('dropdown-item'));
+        
+        $class_names = join(' ', apply_filters('nav_menu_css_class', array_filter($classes), $item, $args, $depth));
+        $class_names = $class_names ? ' class="' . esc_attr($class_names) . '"' : '';
+        
+        $id = apply_filters('nav_menu_item_id', 'menu-item-'. $item->ID, $item, $args, $depth);
+        $id = $id ? ' id="' . esc_attr($id) . '"' : '';
+        
+        $output .= '<li' . $id . $class_names .'>';
+        
+        $atts = array();
+        $atts['title']  = !empty($item->attr_title) ? $item->attr_title : '';
+        $atts['target'] = !empty($item->target) ? $item->target : '';
+        $atts['rel']    = !empty($item->xfn) ? $item->xfn : '';
+        $atts['href']   = !empty($item->url) ? $item->url : '';
+        
+        $atts = apply_filters('nav_menu_link_attributes', $atts, $item, $args, $depth);
+        
+        $attributes = '';
+        foreach ($atts as $attr => $value) {
+            if (!empty($value)) {
+                $value = ('href' === $attr) ? esc_url($value) : esc_attr($value);
+                $attributes .= ' ' . $attr . '="' . $value . '"';
+            }
+        }
+        
+        // Add dropdown-item class to the link
+        $link_class = 'dropdown-item';
+        
+        // Add text-danger class to logout link
+        if (strpos($item->url, 'wp-login.php?action=logout') !== false) {
+            $link_class .= ' text-danger';
+        }
+        
+        $item_output = $args->before;
+        $item_output .= '<a'. $attributes .' class="' . esc_attr($link_class) . '">';
+        $item_output .= $args->link_before . apply_filters('the_title', $item->title, $item->ID) . $args->link_after;
+        $item_output .= '</a>';
+        $item_output .= $args->after;
+        
+        $output .= apply_filters('walker_nav_menu_start_el', $item_output, $item, $depth, $args);
+    }
+    
+    function end_el(&$output, $item, $depth = 0, $args = array()) {
+        $output .= "</li>\n";
+    }
+    
+    // Add a custom method to add the logout link
+    function add_logout_link(&$output, $args) {
+        $output .= '<li class="menu-item menu-item-type-custom menu-item-object-custom">';
+        $output .= '<a class="dropdown-item text-danger" href="' . esc_url(wp_logout_url(home_url())) . '">' . __('Logout', 'job-listing') . '</a>';
+        $output .= '</li>';
+    }
+}
+
+
+/**
+ * Generate user profile dropdown menu with automatic logout link
+ */
+function generate_user_profile_menu_with_logout() {
+    $output = '';
+    
+    // Check if the menu exists in the location
+    if (has_nav_menu('user-profile-menu')) {
+        $locations = get_nav_menu_locations();
+        $menu = wp_get_nav_menu_object($locations['user-profile-menu']);
+        $menu_items = wp_get_nav_menu_items($menu->term_id);
+        
+        if ($menu_items) {
+            // Create a walker instance
+            $walker = new User_Profile_Menu_Walker();
+            
+            // Process menu items
+            foreach ($menu_items as $item) {
+                // Skip if this is a logout link (we'll add it manually)
+                if (strpos($item->url, 'wp-login.php?action=logout') !== false) {
+                    continue;
+                }
+                
+                // Get the original classes
+                $classes = empty($item->classes) ? array() : (array) $item->classes;
+                
+                // Remove the dropdown-item class if it exists
+                $classes = array_diff($classes, array('dropdown-item'));
+                
+                $class_names = join(' ', apply_filters('nav_menu_css_class', array_filter($classes), $item, array(), 0));
+                $class_attr = $class_names ? ' class="' . esc_attr($class_names) . '"' : '';
+                
+                $id = 'menu-item-' . $item->ID;
+                $id_attr = ' id="' . esc_attr($id) . '"';
+                
+                // Add dropdown-item class to the link
+                $link_class = 'dropdown-item';
+                
+                $output .= '<li' . $id_attr . $class_attr . '>';
+                $output .= '<a class="' . esc_attr($link_class) . '" href="' . esc_url($item->url) . '">' . esc_html($item->title) . '</a>';
+                $output .= '</li>';
+            }
+        }
+    } else {
+        // Fallback to default menu items (without logout)
+        $output .= '<li id="menu-item-profile" class="menu-item menu-item-type-post_type menu-item-object-page dropdown-item">';
+        $output .= '<a class="dropdown-item" href="' . esc_url(get_permalink(get_page_by_path('user-profile'))) . '">' . __('My Profile', 'job-listing') . '</a>';
+        $output .= '</li>';
+        
+        $output .= '<li id="menu-item-jobs" class="menu-item menu-item-type-post_type menu-item-object-page dropdown-item">';
+        $output .= '<a class="dropdown-item" href="' . esc_url(get_permalink(get_page_by_path('applied-jobs'))) . '">' . __('Applied Jobs', 'job-listing') . '</a>';
+        $output .= '</li>';
+        
+        $output .= '<li id="menu-item-notifications" class="menu-item menu-item-type-post_type menu-item-object-page dropdown-item">';
+        $output .= '<a class="dropdown-item" href="' . esc_url(get_permalink(get_page_by_path('notification'))) . '">' . __('Notifications', 'job-listing') . '</a>';
+        $output .= '</li>';
+        
+        $output .= '<li id="menu-item-settings" class="menu-item menu-item-type-post_type menu-item-object-page dropdown-item">';
+        $output .= '<a class="dropdown-item" href="' . esc_url(get_permalink(get_page_by_path('settings'))) . '">' . __('Settings', 'job-listing') . '</a>';
+        $output .= '</li>';
+    }
+    
+    // Add the logout link at the end
+    $output .= '<li id="menu-item-logout" class="menu-item menu-item-type-custom menu-item-object-custom">';
+    $output .= '<a class="dropdown-item text-danger" href="' . esc_url(wp_logout_url(home_url())) . '">' . __('Logout', 'job-listing') . '</a>';
+    $output .= '</li>';
+    
+    return $output;
+}
+
+
+/**
+ * Fallback function for User Profile Menu
+ */
+function user_profile_menu_fallback() {
+    // Get the current user
+    $current_user = wp_get_current_user();
+    
+    // Create default menu items
+    $menu_items = array(
+        array(
+            'title' => __('My Profile', 'job-listing'),
+            'url'   => esc_url(get_permalink(get_page_by_path('user-profile')))
+        ),
+        array(
+            'title' => __('Applied Jobs', 'job-listing'),
+            'url'   => esc_url(get_permalink(get_page_by_path('applied-jobs')))
+        ),
+        array(
+            'title' => __('Notifications', 'job-listing'),
+            'url'   => esc_url(get_permalink(get_page_by_path('notification')))
+        ),
+        array(
+            'title' => __('Settings', 'job-listing'),
+            'url'   => esc_url(get_permalink(get_page_by_path('settings')))
+        ),
+        array(
+            'title' => __('Logout', 'job-listing'),
+            'url'   => wp_logout_url(home_url()),
+            'class' => 'text-danger'
+        )
+    );
+    
+    // Output menu items
+    foreach ($menu_items as $item) {
+        $class = 'dropdown-item';
+        if (isset($item['class']) && $item['class']) {
+            $class .= ' ' . $item['class'];
+        }
+        echo '<li><a class="' . esc_attr($class) . '" href="' . esc_url($item['url']) . '">' . esc_html($item['title']) . '</a></li>';
+    }
+}
+
+
+
+/**
+ * Custom title function for the job portal site
+ *
+ * @param string $title Default title text
+ * @param string $sep Optional separator
+ * @return string The formatted title
+ */
+function job_portal_title($title, $sep = '|') {
+    global $paged, $page;
+    
+    // Get the site name
+    $site_name = get_bloginfo('name');
+    
+    // Get the site description
+    $site_description = get_bloginfo('description', 'display');
+    
+    // Check if we're on the home page
+    if (is_home() || is_front_page()) {
+        // Home page title
+        if ($site_description) {
+            $title = "$site_name $sep $site_description";
+        } else {
+            $title = "$site_name $sep " . __('Find Your Dream Job', 'job-listing');
+        }
+    } 
+    // Check if we're on a job listing page
+    elseif (is_post_type_archive('job')) {
+        $title = __('Job Listings', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're viewing a single job
+    elseif (is_singular('job')) {
+        $job_title = get_the_title();
+        $job_location = get_post_meta(get_the_ID(), '_job_location', true);
+        
+        if ($job_location) {
+            $title = "$job_title in $job_location $sep $site_name";
+        } else {
+            $title = "$job_title $sep $site_name";
+        }
+    }
+    // Check if we're on a job category archive
+    elseif (is_tax('job_category')) {
+        $term = get_queried_object();
+        $title = sprintf(__('%s Jobs', 'job-listing'), $term->name) . " $sep $site_name";
+    }
+    // Check if we're on a job type archive
+    elseif (is_tax('job_type')) {
+        $term = get_queried_object();
+        $title = sprintf(__('%s Jobs', 'job-listing'), $term->name) . " $sep $site_name";
+    }
+    // Check if we're on a search results page
+    elseif (is_search()) {
+        $search_query = get_search_query();
+        $title = sprintf(__('Search Results for: %s', 'job-listing'), $search_query) . " $sep $site_name";
+    }
+    // Check if we're on the author archive
+    elseif (is_author()) {
+        $author = get_queried_object();
+        $title = sprintf(__('Jobs Posted by %s', 'job-listing'), $author->display_name) . " $sep $site_name";
+    }
+    // Check if we're on a 404 page
+    elseif (is_404()) {
+        $title = __('Page Not Found', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the login page
+    elseif (is_page_template('template-login.php')) {
+        $title = __('Login', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the signup page
+    elseif (is_page_template('template-signup.php')) {
+        $title = __('Create Account', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the forgot password page
+    elseif (is_page_template('template-forgot-password.php')) {
+        $title = __('Forgot Password', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the password reset page
+    elseif (is_page_template('template-password-reset.php')) {
+        $title = __('Reset Password', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the user profile page
+    elseif (is_page_template('template-user-profile.php')) {
+        $title = __('My Profile', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the settings page
+    elseif (is_page_template('template-settings.php')) {
+        $title = __('Account Settings', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the applied jobs page
+    elseif (is_page_template('template-applied-jobs.php')) {
+        $title = __('Applied Jobs', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on the notifications page
+    elseif (is_page_template('template-notifications.php')) {
+        $title = __('Notifications', 'job-listing') . " $sep $site_name";
+    }
+    // Check if we're on a blog archive or single post
+    elseif (is_home() || is_single() || is_category() || is_tag() || is_date()) {
+        // For blog-related pages, use the default WordPress title
+        return $title;
+    }
+    // For any other page
+    else {
+        $page_title = get_the_title();
+        $title = "$page_title $sep $site_name";
+    }
+    
+    // Add pagination if needed
+    if ($paged >= 2 || $page >= 2) {
+        $title .= " $sep " . sprintf(__('Page %s', 'job-listing'), max($paged, $page));
+    }
+    
+    return $title;
+}
+add_filter('wp_title', 'job_portal_title', 10, 2);
+
+/**
+ * Add theme support for title tag
+ */
+function job_portal_title_tag_support() {
+    add_theme_support('title-tag');
+}
+add_action('after_setup_theme', 'job_portal_title_tag_support');
+
+/**
+ * Remove default WordPress title and use our custom function
+ */
+function remove_default_title() {
+    // Remove the default title
+    remove_action('wp_head', '_wp_render_title_tag', 1);
+    
+    // Add our custom title
+    add_action('wp_head', 'job_portal_render_title', 1);
+}
+add_action('init', 'remove_default_title');
+
+/**
+ * Render the custom title tag
+ */
+function job_portal_render_title() {
+    $title = job_portal_title('');
+    echo '<title>' . esc_html($title) . '</title>' . "\n";
+}
+
+
+/**
+ * Generate meta description for the job portal
+ */
+function job_portal_meta_description() {
+    $description = '';
+    
+    // Home page
+    if (is_home() || is_front_page()) {
+        $description = get_bloginfo('description');
+        if (empty($description)) {
+            $description = __('Find your dream job from thousands of job listings. Search by location, industry, and job type. Apply today and take the next step in your career.', 'job-listing');
+        }
+    }
+    // Job listings page
+    elseif (is_page('job-listing')) {
+        $description = __('Browse all available job listings. Find the perfect job that matches your skills and experience.', 'job-listing');
+    }
+    // Single job
+    elseif (is_singular('job')) {
+        $job_title = get_the_title();
+        $job_location = get_post_meta(get_the_ID(), '_job_location', true);
+        $job_excerpt = get_the_excerpt();
+        
+        if (!empty($job_excerpt)) {
+            $description = $job_excerpt;
+        } else {
+            $description = sprintf(__('Apply for %s position in %s. View job details and submit your application today.', 'job-listing'), $job_title, $job_location);
+        }
+    }
+    // Job category
+    elseif (is_tax('job_category')) {
+        $term = get_queried_object();
+        $description = sprintf(__('Browse all %s jobs. Find opportunities in this field and apply for positions that match your skills.', 'job-listing'), $term->name);
+    }
+    // Job type
+    elseif (is_tax('job_type')) {
+        $term = get_queried_object();
+        $description = sprintf(__('Browse all %s positions. Find the perfect job with your preferred work arrangement.', 'job-listing'), $term->name);
+    }
+    // Search results
+    elseif (is_search()) {
+        $search_query = get_search_query();
+        $description = sprintf(__('Search results for "%s". Find jobs that match your search criteria.', 'job-listing'), $search_query);
+    }
+    // Login page
+    elseif (is_page_template('template-login.php')) {
+        $description = __('Log in to your account to access your profile, saved jobs, and application history.', 'job-listing');
+    }
+    // Signup page
+    elseif (is_page_template('template-signup.php')) {
+        $description = __('Create an account to apply for jobs, save listings, and receive job notifications.', 'job-listing');
+    }
+    // User profile page
+    elseif (is_page_template('template-user-profile.php')) {
+        $description = __('Manage your profile, update your resume, and track your job applications.', 'job-listing');
+    }
+    // Settings page
+    elseif (is_page_template('template-settings.php')) {
+        $description = __('Manage your account settings, notification preferences, and security options.', 'job-listing');
+    }
+    // Applied jobs page
+    elseif (is_page_template('template-applied-jobs.php')) {
+        $description = __('View and track the status of all your job applications in one place.', 'job-listing');
+    }
+    // Notifications page
+    elseif (is_page_template('template-notifications.php')) {
+        $description = __('Manage your job alerts and application notifications.', 'job-listing');
+    }
+    // Default description
+    else {
+        $description = get_bloginfo('description');
+    }
+    
+    // Output the meta description
+    if (!empty($description)) {
+        echo '<meta name="description" content="' . esc_attr($description) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'job_portal_meta_description', 2);
+
+/**
+ * Add Open Graph meta tags for social sharing
+ */
+function job_portal_og_tags() {
+    // Only output on pages we want to share
+    if (is_home() || is_front_page() || is_singular('job') || is_page()) {
+        $title = job_portal_title('');
+        $url = get_permalink();
+        $image = '';
+        
+        // Get featured image for posts and pages
+        if (is_singular() && has_post_thumbnail()) {
+            $image = get_the_post_thumbnail_url(get_the_ID(), 'large');
+        }
+        
+        // Default image if no featured image is set
+        if (empty($image)) {
+            $image = get_template_directory_uri() . '/images/default-og-image.jpg';
+        }
+        
+        // Get description
+        $description = '';
+        if (is_singular('job')) {
+            $excerpt = get_the_excerpt();
+            $description = !empty($excerpt) ? $excerpt : get_bloginfo('description');
+        } else {
+            $description = get_bloginfo('description');
+        }
+        
+        // Output Open Graph tags
+        echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr($description) . '">' . "\n";
+        echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+        echo '<meta property="og:type" content="' . (is_singular('job') ? 'article' : 'website') . '">' . "\n";
+        echo '<meta property="og:image" content="' . esc_url($image) . '">' . "\n";
+        echo '<meta property="og:site_name" content="' . esc_attr(get_bloginfo('name')) . '">' . "\n";
+        
+        // Twitter Card tags
+        echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
+        echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr($description) . '">' . "\n";
+        echo '<meta name="twitter:image" content="' . esc_url($image) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'job_portal_og_tags', 3);
+
+
+/**
+ * Add JobPosting schema markup for single job pages
+ */
+function job_portal_job_schema() {
+    // Only output on single job pages
+    if (!is_singular('job')) {
+        return;
+    }
+    
+    $job_id = get_the_ID();
+    $job_title = get_the_title();
+    $job_description = get_the_content();
+    $job_excerpt = get_the_excerpt();
+    $job_location = get_post_meta($job_id, '_job_location', true);
+    $job_type = get_post_meta($job_id, '_job_type', true);
+    $job_salary = get_post_meta($job_id, '_job_salary', true);
+    $job_deadline = get_post_meta($job_id, '_job_deadline', true);
+    $company_name = get_post_meta($job_id, '_company_name', true);
+    $company_url = get_post_meta($job_id, '_company_url', true);
+    
+    // Get job types
+    $employment_type = array();
+    if (!empty($job_type)) {
+        if (is_array($job_type)) {
+            foreach ($job_type as $type) {
+                $employment_type[] = ucfirst($type);
+            }
+        } else {
+            $employment_type[] = ucfirst($job_type);
+        }
+    } else {
+        $employment_type[] = 'FULL_TIME';
+    }
+    
+    // Format date
+    $date_posted = get_the_date('Y-m-d');
+    $valid_through = !empty($job_deadline) ? date('Y-m-d', strtotime($job_deadline)) : '';
+    
+    // Build schema data
+    $schema = array(
+        '@context' => 'https://schema.org/',
+        '@type' => 'JobPosting',
+        'title' => $job_title,
+        'description' => !empty($job_excerpt) ? $job_excerpt : $job_description,
+        'datePosted' => $date_posted,
+        'validThrough' => $valid_through,
+        'employmentType' => $employment_type,
+        'hiringOrganization' => array(
+            '@type' => 'Organization',
+            'name' => !empty($company_name) ? $company_name : get_bloginfo('name'),
+            'sameAs' => !empty($company_url) ? $company_url : get_home_url()
+        ),
+        'jobLocation' => array(
+            '@type' => 'Place',
+            'address' => array(
+                '@type' => 'PostalAddress',
+                'addressLocality' => $job_location,
+                'addressCountry' => 'BD' // Change to your country code
+            )
+        )
+    );
+    
+    // Add salary if available
+    if (!empty($job_salary)) {
+        $schema['baseSalary'] = array(
+            '@type' => 'MonetaryAmount',
+            'currency' => 'BDT', // Change to your currency code
+            'value' => array(
+                '@type' => 'QuantitativeValue',
+                'value' => $job_salary,
+                'unitText' => 'MONTH' // Change as needed
+            )
+        );
+    }
+    
+    // Output schema
+    echo '<script type="application/ld+json">' . json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+}
+add_action('wp_head', 'job_portal_job_schema', 4);
+
+
+
+/**
+ * Generate breadcrumbs for the job portal
+ */
+function job_portal_breadcrumbs() {
+    // Don't show breadcrumbs on the home page
+    if (is_front_page()) {
+        return;
+    }
+    
+    $breadcrumbs = array();
+    
+    // Add home page
+    $breadcrumbs[] = array(
+        'title' => __('Home', 'job-listing'),
+        'link' => home_url('/')
+    );
+    
+    // Get the job listings page URL
+    $job_listings_page = get_page_by_path('job-listing');
+    $job_listings_url = $job_listings_page ? get_permalink($job_listings_page->ID) : get_post_type_archive_link('job');
+    
+    // Job listings page
+    if (is_page('job-listing')) {
+        $breadcrumbs[] = array(
+            'title' => __('Job Listings', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Single job
+    elseif (is_singular('job')) {
+        $breadcrumbs[] = array(
+            'title' => __('Job Listings', 'job-listing'),
+            'link' => $job_listings_url
+        );
+        $breadcrumbs[] = array(
+            'title' => get_the_title(),
+            'link' => ''
+        );
+    }
+    // Job category
+    elseif (is_tax('job_category')) {
+        $breadcrumbs[] = array(
+            'title' => __('Job Listings', 'job-listing'),
+            'link' => $job_listings_url
+        );
+        $term = get_queried_object();
+        $breadcrumbs[] = array(
+            'title' => $term->name,
+            'link' => ''
+        );
+    }
+    // Job type
+    elseif (is_tax('job_type')) {
+        $breadcrumbs[] = array(
+            'title' => __('Job Listings', 'job-listing'),
+            'link' => $job_listings_url
+        );
+        $term = get_queried_object();
+        $breadcrumbs[] = array(
+            'title' => $term->name,
+            'link' => ''
+        );
+    }
+    // Search results
+    elseif (is_search()) {
+        $breadcrumbs[] = array(
+            'title' => __('Search Results', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Author archive
+    elseif (is_author()) {
+        $breadcrumbs[] = array(
+            'title' => __('Jobs Posted by', 'job-listing') . ' ' . get_queried_object()->display_name,
+            'link' => ''
+        );
+    }
+    // User profile page
+    elseif (is_page_template('template-user-profile.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('My Profile', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Settings page
+    elseif (is_page_template('template-settings.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Account Settings', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Applied jobs page
+    elseif (is_page_template('template-applied-jobs.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Applied Jobs', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Notifications page
+    elseif (is_page_template('template-notifications.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Notifications', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Login page
+    elseif (is_page_template('template-login.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Login', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Signup page
+    elseif (is_page_template('template-signup.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Create Account', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Forgot password page
+    elseif (is_page_template('template-forgot-password.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Forgot Password', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Password reset page
+    elseif (is_page_template('template-password-reset.php')) {
+        $breadcrumbs[] = array(
+            'title' => __('Reset Password', 'job-listing'),
+            'link' => ''
+        );
+    }
+    // Other pages
+    elseif (is_page()) {
+        $ancestors = get_post_ancestors(get_the_ID());
+        
+        if ($ancestors) {
+            $ancestors = array_reverse($ancestors);
+            
+            foreach ($ancestors as $ancestor) {
+                $breadcrumbs[] = array(
+                    'title' => get_the_title($ancestor),
+                    'link' => get_permalink($ancestor)
+                );
+            }
+        }
+        
+        $breadcrumbs[] = array(
+            'title' => get_the_title(),
+            'link' => ''
+        );
+    }
+    // Blog archive
+    elseif (is_home() && !is_front_page()) {
+        $blog_page = get_option('page_for_posts');
+        $breadcrumbs[] = array(
+            'title' => get_the_title($blog_page),
+            'link' => ''
+        );
+    }
+    // Single post
+    elseif (is_single() && !is_singular('job')) {
+        $categories = get_the_category();
+        
+        if ($categories) {
+            $category = $categories[0];
+            $breadcrumbs[] = array(
+                'title' => $category->name,
+                'link' => get_category_link($category->term_id)
+            );
+        }
+        
+        $breadcrumbs[] = array(
+            'title' => get_the_title(),
+            'link' => ''
+        );
+    }
+    // Category archive
+    elseif (is_category()) {
+        $breadcrumbs[] = array(
+            'title' => single_cat_title('', false),
+            'link' => ''
+        );
+    }
+    // Tag archive
+    elseif (is_tag()) {
+        $breadcrumbs[] = array(
+            'title' => single_tag_title('', false),
+            'link' => ''
+        );
+    }
+    // Date archive
+    elseif (is_day()) {
+        $breadcrumbs[] = array(
+            'title' => get_the_date('Y'),
+            'link' => get_year_link(get_the_date('Y'))
+        );
+        $breadcrumbs[] = array(
+            'title' => get_the_date('F'),
+            'link' => get_month_link(get_the_date('Y'), get_the_date('m'))
+        );
+        $breadcrumbs[] = array(
+            'title' => get_the_date('d'),
+            'link' => ''
+        );
+    } elseif (is_month()) {
+        $breadcrumbs[] = array(
+            'title' => get_the_date('Y'),
+            'link' => get_year_link(get_the_date('Y'))
+        );
+        $breadcrumbs[] = array(
+            'title' => get_the_date('F'),
+            'link' => ''
+        );
+    } elseif (is_year()) {
+        $breadcrumbs[] = array(
+            'title' => get_the_date('Y'),
+            'link' => ''
+        );
+    }
+    // 404 page
+    elseif (is_404()) {
+        $breadcrumbs[] = array(
+            'title' => __('Page Not Found', 'job-listing'),
+            'link' => ''
+        );
+    }
+    
+    // Output breadcrumbs
+    echo '<nav aria-label="breadcrumb" class="breadcrumb-container mb-4">';
+    echo '<ol class="breadcrumb">';
+    
+    $count = count($breadcrumbs);
+    foreach ($breadcrumbs as $index => $breadcrumb) {
+        $active = ($index === $count - 1) ? ' active' : '';
+        $aria_current = ($index === $count - 1) ? ' aria-current="page"' : '';
+        
+        echo '<li class="breadcrumb-item' . $active . '"' . $aria_current . '>';
+        
+        if (!empty($breadcrumb['link'])) {
+            echo '<a href="' . esc_url($breadcrumb['link']) . '">' . esc_html($breadcrumb['title']) . '</a>';
+        } else {
+            echo esc_html($breadcrumb['title']);
+        }
+        
+        echo '</li>';
+    }
+    
+    echo '</ol>';
+    echo '</nav>';
+}
+
+// 🔒 Disable all default WP new user notifications
+function disable_default_new_user_emails() {
+    // Remove the default notifications early enough
+    remove_action('register_new_user', 'wp_send_new_user_notifications');
+    remove_action('edit_user_created_user', 'wp_send_new_user_notifications', 10, 2);
+    
+    // Also disable the admin notification email
+    //add_filter('wp_send_new_user_notification_to_admin', '__return_false');
+    add_filter('wp_send_new_user_notification_to_user', '__return_false');
+}
+add_action('plugins_loaded', 'disable_default_new_user_emails');
+add_action('init', 'disable_default_new_user_emails');
+
+// Send ONLY our custom welcome email
+function send_custom_welcome_email( $user_id ) {
+    $user = get_userdata( $user_id );
+    if ( ! $user ) {
+        return;
+    }
+    
+    $site_name = wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES );
+
+    $message  = "Hi " . $user->user_login . ",\n\n";
+    $message .= "Welcome to " . $site_name . "! 🎉\n\n";
+    $message .= "You can log in to your account here:\n";
+    $message .= home_url( '/login/' ) . "\n\n";
+    $message .= "Thanks for joining us!\n\n";
+    $message .= "– The " . $site_name . " Team";
+
+    wp_mail(
+        $user->user_email,
+        'Welcome to ' . $site_name,
+        $message,
+        array( 'Content-Type: text/plain; charset=UTF-8' )
+    );
+}
+add_action( 'user_register', 'send_custom_welcome_email' );
+
+
+// Set default email notifications when user registers
+function set_default_user_meta($user_id) {
+    if (empty(get_user_meta($user_id, 'email_notifications', true))) {
+        update_user_meta($user_id, 'email_notifications', '1');
+    }
+}
+add_action('user_register', 'set_default_user_meta');
+
+
+// Add settings submenu
+function add_job_applications_settings_menu() {
+    add_submenu_page(
+        'edit.php?post_type=job',          // Parent slug
+        'Jobs Settings',      // Page title
+        'Settings',                  // Menu title
+        'manage_options',            // Capability
+        'job_applications_settings', // Menu slug
+        'job_applications_settings_page' // Callback function
+    );
+}
+add_action('admin_menu', 'add_job_applications_settings_menu');
+
+
+
+
+
+//=======================
+
+function job_applications_settings_page() {
+    // Check if user has permission
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    
+    // Process form submission
+    if (isset($_POST['submit'])) {
+        // Verify nonce
+        if (!isset($_POST['job_applications_settings_nonce']) || !wp_verify_nonce($_POST['job_applications_settings_nonce'], 'job_applications_settings_update')) {
+            wp_die('Security check failed');
+        }
+        
+        // Save the notification method
+        $notification_method = sanitize_text_field($_POST['job_applications_notification_method']);
+        update_option('job_applications_notification_method', $notification_method);
+        
+        // Save SMS settings
+        $sms_api_key = sanitize_text_field($_POST['job_applications_sms_api_key']);
+        $sms_api_secret = sanitize_text_field($_POST['job_applications_sms_api_secret']);
+        $sms_from_number = sanitize_text_field($_POST['job_applications_sms_from_number']);
+        
+        update_option('job_applications_sms_api_key', $sms_api_key);
+        update_option('job_applications_sms_api_secret', $sms_api_secret);
+        update_option('job_applications_sms_from_number', $sms_from_number);
+        
+        // Save SMS templates
+        update_option('job_applications_sms_shortlist_template', sanitize_textarea_field($_POST['job_applications_sms_shortlist_template']));
+        update_option('job_applications_sms_interview_template', sanitize_textarea_field($_POST['job_applications_sms_interview_template']));
+        update_option('job_applications_sms_reschedule_template', sanitize_textarea_field($_POST['job_applications_sms_reschedule_template']));
+        
+        // Display success message
+        echo '<div class="notice notice-success is-dismissible"><p>Settings saved successfully.</p></div>';
+    }
+    
+    // Get current saved values
+    $notification_method = get_option('job_applications_notification_method', 'email');
+    $sms_api_key = get_option('job_applications_sms_api_key', '');
+    $sms_api_secret = get_option('job_applications_sms_api_secret', '');
+    $sms_from_number = get_option('job_applications_sms_from_number', '');
+    $shortlist_template = get_option('job_applications_sms_shortlist_template', 'Hello {candidate_name}, your application for {job_title} has been shortlisted. We will contact you soon for further steps.');
+    $interview_template = get_option('job_applications_sms_interview_template', 'Hello {candidate_name}, you have been selected for an interview for {job_title}. Your interview is scheduled on {interview_date} at {interview_time}. Please reply CONFIRM to confirm your attendance.');
+    $reschedule_template = get_option('job_applications_sms_reschedule_template', 'Hello {candidate_name}, your interview for {job_title} has been rescheduled to {new_interview_date} at {new_interview_time}. Please reply CONFIRM if you can attend.');
+    ?>
+    <div class="wrap">
+        <h1>Job Application Settings</h1>
+        
+        <form method="post" action="">
+            <?php wp_nonce_field('job_applications_settings_update', 'job_applications_settings_nonce'); ?>
+            
+            <h2 class="title">Notification Method</h2>
+            <table class="form-table">
+                <tr valign="top">
+                    <th scope="row">Notification Method</th>
+                    <td>
+                        <select name="job_applications_notification_method" id="job_applications_notification_method">
+                            <option value="email" <?php selected($notification_method, 'email'); ?>>Email</option>
+                            <option value="sms" <?php selected($notification_method, 'sms'); ?>>SMS</option>
+                            <option value="both" <?php selected($notification_method, 'both'); ?>>Both Email and SMS</option>
+                        </select>
+                        <p class="description">Choose how you want to notify candidates about their application status.</p>
+                    </td>
+                </tr>
+            </table>
+            
+            <h2 class="title">SMS Configuration</h2>
+            <p class="description">Configure SMS settings. We recommend using Twilio or another SMS service provider.</p>
+            
+            <table class="form-table">
+                <tr valign="top">
+                    <th scope="row">SMS API Key</th>
+                    <td>
+                        <input type="text" name="job_applications_sms_api_key" value="<?php echo esc_attr($sms_api_key); ?>" class="regular-text" />
+                        <p class="description">Enter your SMS service provider API key.</p>
+                    </td>
+                </tr>
+                
+                <tr valign="top">
+                    <th scope="row">SMS API Secret</th>
+                    <td>
+                        <input type="password" name="job_applications_sms_api_secret" value="<?php echo esc_attr($sms_api_secret); ?>" class="regular-text" />
+                        <p class="description">Enter your SMS service provider API secret.</p>
+                    </td>
+                </tr>
+                
+                <tr valign="top">
+                    <th scope="row">Sender Number</th>
+                    <td>
+                        <input type="text" name="job_applications_sms_from_number" value="<?php echo esc_attr($sms_from_number); ?>" class="regular-text" />
+                        <p class="description">Enter the phone number that will send the SMS messages.</p>
+                    </td>
+                </tr>
+            </table>
+            
+            <h2 class="title">SMS Templates</h2>
+            <p class="description">Customize SMS templates for different events. Available placeholders: {candidate_name}, {job_title}, {company_name}, {interview_date}, {interview_time}, {new_interview_date}, {new_interview_time}</p>
+            
+            <table class="form-table">
+                <tr valign="top">
+                    <th scope="row">Shortlist Template</th>
+                    <td>
+                        <textarea name="job_applications_sms_shortlist_template" rows="3" class="large-text"><?php echo esc_textarea($shortlist_template); ?></textarea>
+                    </td>
+                </tr>
+                
+                <tr valign="top">
+                    <th scope="row">Interview Schedule Template</th>
+                    <td>
+                        <textarea name="job_applications_sms_interview_template" rows="3" class="large-text"><?php echo esc_textarea($interview_template); ?></textarea>
+                    </td>
+                </tr>
+                
+                <tr valign="top">
+                    <th scope="row">Interview Reschedule Template</th>
+                    <td>
+                        <textarea name="job_applications_sms_reschedule_template" rows="3" class="large-text"><?php echo esc_textarea($reschedule_template); ?></textarea>
+                    </td>
+                </tr>
+            </table>
+            
+            <?php submit_button('Save Settings'); ?>
+        </form>
+    </div>
+    <?php
+}
+
+// Register the setting
+function job_applications_register_sms_settings() {
+    register_setting('job_applications_settings_group', 'job_applications_notification_method');
+    register_setting('job_applications_settings_group', 'job_applications_sms_api_key');
+    register_setting('job_applications_settings_group', 'job_applications_sms_api_secret');
+    register_setting('job_applications_settings_group', 'job_applications_sms_from_number');
+    register_setting('job_applications_settings_group', 'job_applications_sms_shortlist_template');
+    register_setting('job_applications_settings_group', 'job_applications_sms_interview_template');
+    register_setting('job_applications_settings_group', 'job_applications_sms_reschedule_template');
+}
+add_action('admin_init', 'job_applications_register_sms_settings');
+

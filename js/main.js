@@ -185,49 +185,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-document.addEventListener('DOMContentLoaded', function () {
-    // Password strength indicator
-    const passwordInput = document.getElementById('floatingPassword');
-    if (passwordInput) {
-        passwordInput.addEventListener('input', function(e) {
-            const password = e.target.value;
-            const strengthBar = document.getElementById('passwordStrengthBar');
-            let strength = 0;
-            if (password.length > 0) strength += 20;
-            if (password.length >= 8) strength += 20;
-            if (/[A-Z]/.test(password)) strength += 20;
-            if (/\d/.test(password)) strength += 20;
-            if (/[^A-Za-z0-9]/.test(password)) strength += 20;
-            strengthBar.style.width = strength + '%';
-            if (strength < 40) {
-                strengthBar.style.backgroundColor = '#dc3545'; // red
-            } else if (strength < 80) {
-                strengthBar.style.backgroundColor = '#fd7e14'; // orange
-            } else {
-                strengthBar.style.backgroundColor = '#198754'; // green
-            }
-        });
-    }
+// document.addEventListener('DOMContentLoaded', function () {
+//     // Password strength indicator
+//     const passwordInput = document.getElementById('floatingPassword');
+//     if (passwordInput) {
+//         passwordInput.addEventListener('input', function(e) {
+//             const password = e.target.value;
+//             const strengthBar = document.getElementById('passwordStrengthBar');
+//             let strength = 0;
+//             if (password.length > 0) strength += 20;
+//             if (password.length >= 8) strength += 20;
+//             if (/[A-Z]/.test(password)) strength += 20;
+//             if (/\d/.test(password)) strength += 20;
+//             if (/[^A-Za-z0-9]/.test(password)) strength += 20;
+//             strengthBar.style.width = strength + '%';
+//             if (strength < 40) {
+//                 strengthBar.style.backgroundColor = '#dc3545'; // red
+//             } else if (strength < 80) {
+//                 strengthBar.style.backgroundColor = '#fd7e14'; // orange
+//             } else {
+//                 strengthBar.style.backgroundColor = '#198754'; // green
+//             }
+//         });
+//     }
 
-    // Password match validation
-    const confirmPasswordInput = document.getElementById('floatingConfirmPassword');
-    if (confirmPasswordInput) {
-        confirmPasswordInput.addEventListener('input', function(e) {
-            const password = document.getElementById('floatingPassword').value;
-            const confirmPassword = e.target.value;
-            const matchText = document.getElementById('passwordMatch');
-            if (confirmPassword === '') {
-                matchText.textContent = '';
-            } else if (password !== confirmPassword) {
-                matchText.textContent = 'Passwords do not match!';
-                matchText.className = 'text-danger small';
-            } else {
-                matchText.textContent = 'Passwords match!';
-                matchText.className = 'text-success small';
-            }
-        });
-    }
-});
+//     // Password match validation
+//     const confirmPasswordInput = document.getElementById('floatingConfirmPassword');
+//     if (confirmPasswordInput) {
+//         confirmPasswordInput.addEventListener('input', function(e) {
+//             const password = document.getElementById('floatingPassword').value;
+//             const confirmPassword = e.target.value;
+//             const matchText = document.getElementById('passwordMatch');
+//             if (confirmPassword === '') {
+//                 matchText.textContent = '';
+//             } else if (password !== confirmPassword) {
+//                 matchText.textContent = 'Passwords do not match!';
+//                 matchText.className = 'text-danger small';
+//             } else {
+//                 matchText.textContent = 'Passwords match!';
+//                 matchText.className = 'text-success small';
+//             }
+//         });
+//     }
+// });
 
 
 
@@ -540,4 +540,143 @@ fileInput.addEventListener('change', function(e) {
         reader.readAsDataURL(this.files[0]); // Convert file to data URL
     }
 });
+});
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle password visibility for login form
+    const toggleLoginPassword = document.getElementById('toggleLoginPassword');
+    const userPassword = document.getElementById('user_password');
+    
+    if (toggleLoginPassword && userPassword) {
+        toggleLoginPassword.addEventListener('click', function() {
+            const type = userPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+            userPassword.setAttribute('type', type);
+            
+            // Toggle the icon
+            const icon = this.querySelector('i');
+            if (icon) {
+                if (type === 'password') {
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                } else {
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                }
+            }
+        });
+    }
+});
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle password visibility for signup form - Password field
+    const toggleSignupPassword = document.getElementById('toggleSignupPassword');
+    const floatingPassword = document.getElementById('floatingPassword');
+    
+    if (toggleSignupPassword && floatingPassword) {
+        toggleSignupPassword.addEventListener('click', function() {
+            const type = floatingPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+            floatingPassword.setAttribute('type', type);
+            
+            // Toggle the icon
+            const icon = this.querySelector('i');
+            if (icon) {
+                if (type === 'password') {
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                } else {
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                }
+            }
+        });
+    }
+    
+    // Toggle password visibility for signup form - Confirm Password field
+    const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+    const floatingConfirmPassword = document.getElementById('floatingConfirmPassword');
+    
+    if (toggleConfirmPassword && floatingConfirmPassword) {
+        toggleConfirmPassword.addEventListener('click', function() {
+            const type = floatingConfirmPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+            floatingConfirmPassword.setAttribute('type', type);
+            
+            // Toggle the icon
+            const icon = this.querySelector('i');
+            if (icon) {
+                if (type === 'password') {
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                } else {
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                }
+            }
+        });
+    }
+    
+    // Password strength indicator
+    const passwordInput = document.getElementById('floatingPassword');
+    const passwordStrengthBar = document.getElementById('passwordStrengthBar');
+    
+    if (passwordInput && passwordStrengthBar) {
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+            
+            // Length check
+            if (password.length >= 8) {
+                strength += 1;
+            }
+            
+            // Complexity checks
+            if (password.match(/[a-z]+/)) {
+                strength += 1; // Lowercase letters
+            }
+            
+            if (password.match(/[A-Z]+/)) {
+                strength += 1; // Uppercase letters
+            }
+            
+            if (password.match(/[0-9]+/)) {
+                strength += 1; // Numbers
+            }
+            
+            if (password.match(/[^A-Za-z0-9]+/)) {
+                strength += 1; // Special characters
+            }
+            
+            // Update strength bar
+            passwordStrengthBar.className = 'password-strength-bar';
+            
+            if (password.length === 0) {
+                passwordStrengthBar.style.width = '0';
+            } else if (strength <= 2) {
+                passwordStrengthBar.classList.add('weak');
+            } else if (strength === 3) {
+                passwordStrengthBar.classList.add('medium');
+            } else if (strength === 4) {
+                passwordStrengthBar.classList.add('strong');
+            } else {
+                passwordStrengthBar.classList.add('very-strong');
+            }
+        });
+    }
+    
+    // Password match validation
+    const confirmPasswordInput = document.getElementById('floatingConfirmPassword');
+    const passwordMatch = document.getElementById('passwordMatch');
+    
+    if (confirmPasswordInput && passwordMatch) {
+        confirmPasswordInput.addEventListener('input', function() {
+            if (passwordInput.value !== this.value) {
+                passwordMatch.textContent = 'Passwords do not match';
+            } else {
+                passwordMatch.textContent = '';
+            }
+        });
+    }
 });

@@ -5,6 +5,15 @@
  * @package Job_Listing_Theme
  */
 
+ // Redirect non-logged-in users before sending any output
+if ( ! is_user_logged_in() ) {
+    $login_page = home_url( '/login/' );
+    wp_safe_redirect( $login_page );
+    exit;
+}else{
+
+
+
 // Get current user ID
 $user_id = get_current_user_id();
 
@@ -409,6 +418,8 @@ if (!is_array($languages)) {
             <p>No references added yet.</p>
         </div>
     <?php endif; ?>
+<!-- Floating Print Button -->
+<button id="floatingPrintBtn" title="Print Page">🖨️</button>
 </div>
     </div>
     <!-- Bootstrap JS Bundle with Popper -->
@@ -417,6 +428,14 @@ if (!is_array($languages)) {
     <script src="js/main.js"></script>
     <!-- intlTelInput JS -->
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js"></script> -->
+     <script>
+document.getElementById("floatingPrintBtn").addEventListener("click", function() {
+  window.print();
+});
+</script>
 </body>
 
 </html>
+<?php
+} // End of else for is_user_logged_in check
+?>

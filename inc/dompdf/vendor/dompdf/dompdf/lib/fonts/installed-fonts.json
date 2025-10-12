@@ -15,5 +15,8 @@
     },
     "fontawesome": {
         "normal": "fontawesome_normal_6aa5cc0b95be2651581a2d7ad4a9d038"
+    },
+    "glyphicons halflings": {
+        "normal": "glyphicons_halflings_normal_448cf7c5a9f8cf5b480d96c9606cc001"
     }
 }

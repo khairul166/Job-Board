@@ -4,10 +4,8 @@
  *
  * @package Job_Listing_Theme
  */
-
 get_header();
 ?>
-
 <!-- Hero Section -->
 <section class="hero-section">
     <div class="container text-center">
@@ -15,95 +13,99 @@ get_header();
         <p class="lead mb-4"><?php _e('Browse thousands of job listings from top companies worldwide', 'job-listing'); ?></p>
         <div class="row justify-content-center">
             <div class="col-lg-8">
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control form-control-lg" id="search-keywords"
-                        placeholder="<?php _e('Job title, keywords, or company', 'job-listing'); ?>">
-                    <input type="text" class="form-control form-control-lg" id="search-location"
-                        placeholder="<?php _e('Location', 'job-listing'); ?>">
-                    <button class="btn btn-success btn-lg" type="button" id="search-jobs">
-                        <i class="fas fa-search me-2"></i><?php _e('Search', 'job-listing'); ?>
-                    </button>
-                </div>
-                <div class="d-flex flex-wrap justify-content-center gap-2">
-                    <span class="badge bg-warning text-dark"><?php _e('Software Engineer', 'job-listing'); ?></span>
-                    <span class="badge bg-warning text-dark"><?php _e('Marketing', 'job-listing'); ?></span>
-                    <span class="badge bg-warning text-dark"><?php _e('UX Designer', 'job-listing'); ?></span>
-                    <span class="badge bg-warning text-dark"><?php _e('Remote', 'job-listing'); ?></span>
-                    <span class="badge bg-warning text-dark"><?php _e('Full-time', 'job-listing'); ?></span>
-                </div>
+                <form method="get" action="">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control form-control-lg" name="keywords" id="search-keywords"
+                            placeholder="<?php _e('Job title, keywords', 'job-listing'); ?>"
+                            value="<?php echo isset($_GET['keywords']) ? esc_attr($_GET['keywords']) : ''; ?>">
+                        <input type="text" class="form-control form-control-lg" name="location" id="search-location"
+                            placeholder="<?php _e('Location', 'job-listing'); ?>"
+                            value="<?php echo isset($_GET['location']) ? esc_attr($_GET['location']) : ''; ?>">
+                        <button class="btn btn-success btn-lg" type="submit" id="search-jobs">
+                            <i class="fas fa-search me-2"></i><?php _e('Search', 'job-listing'); ?>
+                        </button>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
+                        <?php display_popular_search_badges(); ?>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 </section>
-
 <!-- Main Content -->
 <div class="container my-5">
     <!-- Filter Section -->
     <div class="row mb-4">
         <div class="col-12">
-<div class="filter-section">
-    <div class="row">
-        <div class="col-md-3 mb-2">
-            <select class="form-select" id="job-type-filter">
-                <option value=""><?php _e('All Job Types', 'job-listing'); ?></option>
-                <?php
-                $job_types = get_unique_job_types();
-                if (!empty($job_types)) {
-                    foreach ($job_types as $type) {
-                        echo '<option value="' . esc_attr(strtolower($type)) . '">' . esc_html($type) . '</option>';
-                    }
-                } else {
-                    echo '<option value="" disabled>' . __('No job types available', 'job-listing') . '</option>';
-                }
-                ?>
-            </select>
-        </div>
-<div class="col-md-3 mb-2">
-    <select class="form-select" id="experience-filter">
-        <option value=""><?php _e('All Experience Levels', 'job-listing'); ?></option>
-        <?php
-        $experience_levels = get_experience_levels();
-        $experience_options = array(
-            'entry' => __('Entry Level', 'job-listing'),
-            'mid' => __('Mid Level', 'job-listing'),
-            'senior' => __('Senior Level', 'job-listing'),
-            'executive' => __('Executive Level', 'job-listing'),
-        );
-        
-        if (!empty($experience_levels)) {
-            foreach ($experience_levels as $level) {
-                if (isset($experience_options[$level])) {
-                    echo '<option value="' . esc_attr($level) . '">' . esc_html($experience_options[$level]) . '</option>';
-                }
-            }
-        } else {
-            echo '<option value="" disabled>' . __('No experience levels available', 'job-listing') . '</option>';
-        }
-        ?>
-    </select>
-</div>
-        <div class="col-md-3 mb-2">
-            <select class="form-select" id="industry-filter">
-                <option value=""><?php _e('All Industries', 'job-listing'); ?></option>
-                <?php
-                $industries = get_industries();
-                if (!empty($industries)) {
-                    foreach ($industries as $industry) {
-                        echo '<option value="' . esc_attr(strtolower($industry->name)) . '">' . esc_html($industry->name) . '</option>';
-                    }
-                } else {
-                    echo '<option value="" disabled>' . __('No industries available', 'job-listing') . '</option>';
-                }
-                ?>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <button class="btn btn-success w-100" id="reset-filters">
-                <i class="fas fa-sync-alt me-2"></i><?php _e('Reset Filters', 'job-listing'); ?>
-            </button>
-        </div>
-    </div>
-</div>
+            <div class="filter-section">
+                <form method="get" action="">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <select class="form-select" name="job_type" id="job-type-filter">
+                                <option value=""><?php _e('All Job Types', 'job-listing'); ?></option>
+                                <?php
+                                $job_types = get_unique_job_types();
+                                if (!empty($job_types)) {
+                                    foreach ($job_types as $type) {
+                                        $selected = (isset($_GET['job_type']) && $_GET['job_type'] == strtolower($type)) ? 'selected' : '';
+                                        echo '<option value="' . esc_attr(strtolower($type)) . '" ' . $selected . '>' . esc_html($type) . '</option>';
+                                    }
+                                } else {
+                                    echo '<option value="" disabled>' . __('No job types available', 'job-listing') . '</option>';
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <select class="form-select" name="experience" id="experience-filter">
+                                <option value=""><?php _e('All Experience Levels', 'job-listing'); ?></option>
+                                <?php
+                                $experience_levels = get_experience_levels();
+                                $experience_options = array(
+                                    'entry' => __('Entry Level', 'job-listing'),
+                                    'mid' => __('Mid Level', 'job-listing'),
+                                    'senior' => __('Senior Level', 'job-listing'),
+                                    'executive' => __('Executive Level', 'job-listing'),
+                                );
+                                
+                                if (!empty($experience_levels)) {
+                                    foreach ($experience_levels as $level) {
+                                        if (isset($experience_options[$level])) {
+                                            $selected = (isset($_GET['experience']) && $_GET['experience'] == $level) ? 'selected' : '';
+                                            echo '<option value="' . esc_attr($level) . '" ' . $selected . '>' . esc_html($experience_options[$level]) . '</option>';
+                                        }
+                                    }
+                                } else {
+                                    echo '<option value="" disabled>' . __('No experience levels available', 'job-listing') . '</option>';
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <select class="form-select" name="industry" id="industry-filter">
+                                <option value=""><?php _e('All Industries', 'job-listing'); ?></option>
+                                <?php
+                                $industries = get_industries();
+                                if (!empty($industries)) {
+                                    foreach ($industries as $industry) {
+                                        $selected = (isset($_GET['industry']) && $_GET['industry'] == strtolower($industry->name)) ? 'selected' : '';
+                                        echo '<option value="' . esc_attr(strtolower($industry->name)) . '" ' . $selected . '>' . esc_html($industry->name) . '</option>';
+                                    }
+                                } else {
+                                    echo '<option value="" disabled>' . __('No industries available', 'job-listing') . '</option>';
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button" class="btn btn-success w-100" id="reset-filters">
+                                <i class="fas fa-sync-alt me-2"></i><?php _e('Reset Filters', 'job-listing'); ?>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     <div class="row">
@@ -113,14 +115,23 @@ get_header();
                 <?php
                 // Get current page for pagination
                 $paged = (get_query_var('paged')) ? get_query_var('paged') : 1;
+                $today = current_time('Y-m-d');
                 
                 // Query arguments
                 $args = array(
                     'post_type'      => 'job',
-                    'posts_per_page' => 20,
+                    'posts_per_page' => 50,
                     'paged'          => $paged,
                     'orderby'        => 'date',
                     'order'          => 'DESC',
+                    'meta_query'     => array(
+                        array(
+                            'key'     => '_job_deadline',
+                            'value'   => $today,
+                            'compare' => '>=',
+                            'type'    => 'DATE', // make sure it's treated as a date
+                        ),
+                    ),
                 );
                 
                 // Check if we have search parameters
@@ -141,6 +152,24 @@ get_header();
                         'key'     => '_job_type',
                         'value'   => sanitize_text_field($_GET['job_type']),
                         'compare' => 'LIKE'
+                    );
+                }
+                
+                if (isset($_GET['experience']) && !empty($_GET['experience'])) {
+                    $args['meta_query'][] = array(
+                        'key'     => '_job_experience_level',
+                        'value'   => sanitize_text_field($_GET['experience']),
+                        'compare' => '='
+                    );
+                }
+                
+                if (isset($_GET['industry']) && !empty($_GET['industry'])) {
+                    $args['tax_query'] = array(
+                        array(
+                            'taxonomy' => 'job_category',
+                            'field'    => 'slug',
+                            'terms'    => sanitize_text_field($_GET['industry']),
+                        ),
                     );
                 }
                 
@@ -182,14 +211,12 @@ get_header();
                         
                         // Format experience level (from metabox)
                         $experience_level = get_post_meta(get_the_ID(), '_job_experience_level', true);
-
                         $experience_options = array(
                             'entry' => __('Entry Level', 'job-listing'),
                             'mid' => __('Mid Level', 'job-listing'),
                             'senior' => __('Senior Level', 'job-listing'),
                             'executive' => __('Executive Level', 'job-listing'),
                         );
-
                         $experience_display = isset($experience_options[$experience_level]) ? $experience_options[$experience_level] : '';
                                                 
                         // Format industry (from categories)
@@ -249,8 +276,8 @@ get_header();
                         </div>
                     <?php endwhile; ?>
                     
-<!-- Pagination -->
-<?php job_listing_pagination_with_query($job_query); ?>
+                    <!-- Pagination -->
+                    <?php job_listing_pagination_with_query($job_query); ?>
                 <?php else : ?>
                     <div class="no-jobs-found">
                         <h3><?php _e('No jobs found', 'job-listing'); ?></h3>
@@ -326,5 +353,7 @@ get_header();
         </div>
     </div>
 </div>
+
+
 
 <?php get_footer(); ?>

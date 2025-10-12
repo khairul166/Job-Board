@@ -1,174 +1,255 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
+/**
+ * Template Name: Settings
+ *
+ * @package Job_Listing_Theme
+ */
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Profile | JobPortal</title>
-<!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
-    <!-- intlTelInput CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.min.css">
-    <link rel="stylesheet" href="css/custom-style.css">
-</head>
+// Redirect non-logged-in users before sending any output
+if (! is_user_logged_in()) {
+    $login_page = home_url('/login/');
+    wp_safe_redirect($login_page);
+    exit;
+} else {
 
-<body>
- <nav class="navbar navbar-expand-lg navbar-light bg-white rounded">
-            <div class="container">
-                <!-- Logo on the left -->
-                <a class="navbar-brand" href="Index.html">
-                    <img src="https://easyfashion.com.bd/wp-content/uploads/2019/05/Asset-6-2.png.webp" alt="Company Logo">
-                </a>
-                
-                <!-- Mobile toggle button -->
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                
-                <!-- Navbar content -->
-                <div class="collapse navbar-collapse" id="navbarContent">
-                    <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                        <!-- Menu items -->
-                        <li class="nav-item">
-                            <a class="nav-link active" href="Index.html">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">Features</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">Pricing</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">About</a>
-                        </li>
-                        
-                        <!-- Profile dropdown -->
-                        <li class="nav-item dropdown profile-dropdown">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown">
-                                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/a1ee95f0-8a09-4f70-aa08-1edba3a5599d.png" class="profile-img" alt="Profile">
-                                <span class="d-none d-md-inline ms-2">John Doe</span>
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
-                                 <li><a class="dropdown-item" href="user-profile-2.html">My Profile</a></li>
-                            <li><a class="dropdown-item" href="applied-jobs.html">Applied Jobs</a></li>
-                            <li><a class="dropdown-item" href="notification.html">Notifications</a></li>
-                            <li><a class="dropdown-item" href="settings.html">Settings</a></li>
-                            <!-- <li>
-                                <hr class="dropdown-divider">
-                            </li> -->
-                            <li><a class="dropdown-item text-danger" href="#">Logout</a></li>
-                            </ul>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+    get_header();
 
-        <div class="container py-5">
+    // Get current user ID
+    $user_id = get_current_user_id();
+
+    // Get user data
+    $user_data = get_userdata($user_id);
+
+    // Get profile picture
+    $profile_picture = get_user_meta($user_id, 'profile_picture', true);
+    if (empty($profile_picture)) {
+        $profile_picture = get_avatar_url($user_id, array('size' => 150));
+    }
+
+    // Get user meta data
+    $about_me = get_user_meta($user_id, 'about_me', true);
+    $full_name = get_user_meta($user_id, 'full_name', true);
+    $job_title = get_user_meta($user_id, 'job_title', true);
+    $company = get_user_meta($user_id, 'company', true);
+    $location = get_user_meta($user_id, 'location', true);
+
+    // Personal information
+    $father_name = get_user_meta($user_id, 'father_name', true);
+    $mother_name = get_user_meta($user_id, 'mother_name', true);
+    $dob = get_user_meta($user_id, 'dob', true);
+    $gender = get_user_meta($user_id, 'gender', true);
+    $blood_group = get_user_meta($user_id, 'blood_group', true);
+    $nationality = get_user_meta($user_id, 'nationality', true);
+    $birth_country = get_user_meta($user_id, 'birth_country', true);
+    $contact_number = get_user_meta($user_id, 'contact_number', true);
+    $alt_contact = get_user_meta($user_id, 'alt_contact', true);
+    $present_address = get_user_meta($user_id, 'present_address', true);
+    $permanent_address = get_user_meta($user_id, 'permanent_address', true);
+    $presentcity = get_user_meta($user_id, 'presentcity', true);
+    $placeofbirth = get_user_meta($user_id, 'placeofbirth', true);
+
+
+    // Education
+    $education_entries = get_user_meta($user_id, 'education', true);
+    if (!is_array($education_entries)) {
+        $education_entries = array();
+    }
+
+    // Training
+    $training_entries = get_user_meta($user_id, 'training', true);
+    if (!is_array($training_entries)) {
+        $training_entries = array();
+    }
+
+    // Work Experience
+    $experience_entries = get_user_meta($user_id, 'work_experience', true);
+    if (!is_array($experience_entries)) {
+        $experience_entries = array();
+    }
+
+    // References
+    $reference_entries = get_user_meta($user_id, 'references', true);
+    if (!is_array($reference_entries)) {
+        $reference_entries = array();
+    }
+
+    // Skills
+    $skills = get_user_meta($user_id, 'skills', true);
+    if (!is_array($skills)) {
+        $skills = array();
+    }
+
+    // Languages
+    $languages = get_user_meta($user_id, 'languages', true);
+    if (!is_array($languages)) {
+        $languages = array();
+    }
+
+    // Resume
+    $resume_file = get_user_meta($user_id, 'resume_file', true);
+    $resume_filename = get_user_meta($user_id, 'resume_filename', true);
+    $resume_uploaded = get_user_meta($user_id, 'resume_uploaded', true);
+
+    // Calculate profile completeness
+    $completeness_fields = array(
+        'about_me',
+        'full_name',
+        'job_title',
+        'company',
+        'location',
+        'father_name',
+        'mother_name',
+        'dob',
+        'gender',
+        'blood_group',
+        'nationality',
+        'birth_country',
+        'contact_number',
+        'present_address',
+        'permanent_address',
+        'skills',
+        'languages'
+    );
+    $filled_fields = 0;
+    foreach ($completeness_fields as $field) {
+        $value = get_user_meta($user_id, $field, true);
+        if (!empty($value)) {
+            $filled_fields++;
+        }
+    }
+    // Add education, training, experience, and references to completeness calculation
+    if (!empty($education_entries)) $filled_fields++;
+    if (!empty($training_entries)) $filled_fields++;
+    if (!empty($experience_entries)) $filled_fields++;
+    if (!empty($reference_entries)) $filled_fields++;
+    if (!empty($resume_file)) $filled_fields++;
+
+    $completeness_percentage = round(($filled_fields / (count($completeness_fields) + 5)) * 100);
+?>
+    <div class="container py-5">
         <!-- Profile Header -->
         <div class="profile-header position-relative">
-
             <div class="row align-items-center">
-                <div class="col-md-2 text-center">
-                    <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/a1ee95f0-8a09-4f70-aa08-1edba3a5599d.png"
-                        alt="Profile Picture" class="profile-pic mb-3">
+                <div class="col-md-2 text-center profile-pic-col">
+                    <img src="<?php echo esc_url($profile_picture); ?>" alt="Profile Picture" class="profile-pic mb-3">
                     <div>
-                        <button class="btn btn-sm btn-outline-secondary">Change Photo</button>
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#profilepicUploadModal">Change Photo</button>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <h2 class="mb-1">John Doe</h2>
-                    <p class="text-muted mb-2"><i class="fas fa-briefcase me-2"></i> Senior Software Developer at
-                        TechCorp</p>
-                    <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i> San Francisco, CA, USA</p>
-                    <!-- <div class="d-flex flex-wrap">
-                        <span class="badge bg-success me-2 mb-2"><i class="fas fa-star me-1"></i> Premium Member</span>
-                        <span class="badge bg-info me-2 mb-2"><i class="fas fa-check-circle me-1"></i> Verified</span>
-                    </div> -->
+                    <h2 class="mb-1"><?php echo esc_html(!empty($full_name) ? $full_name : $user_data->display_name); ?></h2>
+                    <p class="text-muted mb-2"><i class="fas fa-phone me-2"></i> <?php echo esc_html($contact_number); ?>, <?php echo esc_html($alt_contact); ?></p>
+                    <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i> <?php echo esc_html($present_address); ?></p>
                 </div>
                 <div class="col-md-4">
                     <div class="d-flex justify-content-between mb-2">
                         <span>Profile Completeness:</span>
-                        <span>85%</span>
+                        <span><?php echo esc_html($completeness_percentage); ?>%</span>
                     </div>
                     <div class="progress mb-3">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: 85%" aria-valuenow="85"
-                            aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo esc_attr($completeness_percentage); ?>%" aria-valuenow="<?php echo esc_attr($completeness_percentage); ?>" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#resumeUploadModal"></i> Upload Resume</button>
-                        <button class="btn btn-outline-primary"><i class="fas fa-eye me-1"></i> View Public
-                            Profile</button>
+                        <button class="btn btn-outline-success resume_upload-btn" style="display:<?php if (!empty($resume_file)) : echo 'none';
+                                                                                                    else: echo 'block';
+                                                                                                    endif; ?>" data-bs-toggle="modal" data-bs-target="#resumeUploadModal">Upload Resume</button>
+                        <a class="btn btn-outline-success" href="<?php echo esc_url(get_permalink(get_page_by_path('resume'))); ?>" target="_blank"><i class="fas fa-eye me-1"></i> View Public Profile</a>
                     </div>
                 </div>
             </div>
         </div>
 
-                                        <h3 class="mb-4">Account Settings</h3>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="card mb-4">
-                                            <div class="card-body">
-                                                <h5 class="card-title"><i class="fas fa-user-cog me-2"></i> Profile Settings</h5>
-                                                <hr>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Email Notifications</label>
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input" type="checkbox" id="emailNotify" checked>
-                                                        <label class="form-check-label" for="emailNotify">Receive email notifications</label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-body">
-                                                <h5 class="card-title"><i class="fas fa-shield-alt me-2"></i> Security</h5>
-                                                <hr>
-                                                <button class="btn btn-outline-primary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-                                                    <i class="fas fa-lock me-1"></i> Change Password
-                                                </button>
-                                                
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+        <h3 class="mb-4">Account Settings</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-user-cog me-2"></i> Profile Settings</h5>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label">Email Notifications</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="emailNotify" <?php echo get_user_meta($user_id, 'email_notifications', true) === '1' ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="emailNotify">Receive email notifications</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-shield-alt me-2"></i> Security</h5>
+                        <hr>
+                        <button class="btn btn-outline-success btn-sm me-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                            <i class="fas fa-lock me-1"></i> Change Password
+                        </button>
 
-        </div>
-<!-- Resume Upload Modal -->
-<div class="modal fade" id="resumeUploadModal" tabindex="-1" aria-labelledby="resumeUploadModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title" id="resumeUploadModalLabel">Upload Your Resume</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-
-      <form id="resumeUploadForm" enctype="multipart/form-data">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="resumeFile" class="form-label fw-bold">Select Resume File <span class="text-danger">*</span></label>
-            <input type="file" class="form-control" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" required>
-            <div class="form-text">Accepted formats: PDF, DOC, DOCX. Max size: 5MB.</div>
-          </div>
-
-          <div id="resumeUploadMessage" class="text-success d-none">
-            ✅ Resume uploaded successfully!
-          </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Upload Resume</button>
-        </div>
-      </form>
     </div>
-  </div>
-</div>
+    
+    <!-- Profile Picture Upload Modal -->
+    <div class="modal fade" id="profilepicUploadModal" tabindex="-1" aria-labelledby="profilepicUploadModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="profilepicUploadModalLabel">Change Profile Picture</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="profilepicUploadForm" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3 text-center">
+                            <img id="profilepicPreview" src="<?php echo esc_url($profile_picture); ?>" alt="Profile Preview" class="img-thumbnail mb-3" style="max-width: 200px;">
+                        </div>
+                        <div class="mb-3">
+                            <label for="profilepic" class="form-label">Select Profile Picture</label>
+                            <input type="file" class="form-control" id="profilepic" name="profilepic" accept="image/jpeg" required>
+                            <div class="form-text">Only JPG images are allowed. Maximum size: 2MB.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Upload Picture</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resume Upload Modal -->
+    <div class="modal fade" id="resumeUploadModal" tabindex="-1" aria-labelledby="resumeUploadModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="resumeUploadModalLabel">Upload Your Resume</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <form id="resumeUploadForm" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="resumeFile" class="form-label fw-bold">Select Resume File <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" required>
+                            <div class="form-text">Accepted formats: PDF, DOC, DOCX. Max size: 5MB.</div>
+                        </div>
+
+                        <div id="resumeUploadMessage" class="text-success d-none">
+                            ✅ Resume uploaded successfully!
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">Upload Resume</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
 <!-- Change Password Modal -->
 <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
@@ -179,11 +260,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="changePasswordForm">
+                <form id="changePasswordForm" class="">
                     <div class="mb-3">
                         <label for="currentPassword" class="form-label">Current Password</label>
                         <div class="input-group">
-                            <input type="password" class="form-control" id="currentPassword" required>
+                            <input type="password" class="form-control" id="currentPassword" name="current_password" required>
                             <button class="btn btn-outline-secondary" type="button" id="toggleCurrentPassword">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -195,7 +276,7 @@
                     <div class="mb-3">
                         <label for="newPassword" class="form-label">New Password</label>
                         <div class="input-group">
-                            <input type="password" class="form-control" id="newPassword" required>
+                            <input type="password" class="form-control" id="newPassword" name="new_password" required>
                             <button class="btn btn-outline-secondary" type="button" id="toggleNewPassword">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -208,7 +289,7 @@
                     <div class="mb-3">
                         <label for="confirmPassword" class="form-label">Confirm New Password</label>
                         <div class="input-group">
-                            <input type="password" class="form-control" id="confirmPassword" required>
+                            <input type="password" class="form-control" id="confirmPassword" name="confirm_password" required>
                             <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -225,97 +306,47 @@
                         <small class="text-muted" id="passwordStrengthText">Enter a password</small>
                     </div>
                 </form>
+                <div id="cngpasssuccessMessage" class="alert text-center d-none" role="alert">
+                    <div class="success-animation mx-auto mb-3">
+                        <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                            <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                        </svg>
+                    </div>
+                    <h4 id="cngpasssuccessMessagetext" class="alert-heading mb-3"></h4>
+                </div>
+                <div id="cngpasserrorMessage" class="alert text-center d-none" role="alert">
+                    <div class="success-animation mx-auto mb-3">
+                        <svg class="exclamationmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <!-- Animated circle -->
+                            <circle class="exclamationmark__circle" cx="26" cy="26" r="25" fill="none" stroke="#F97316"
+                                stroke-width="2" />
+                
+                            <!-- Exclamation mark parts -->
+                            <path class="exclamationmark__stem" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round"
+                                d="M26 12v20" />
+                            <circle class="exclamationmark__dot" fill="#F97316" cx="26" cy="36" r="2" />
+                        </svg>
+                    </div>
+                    <h4 id="cngpasserrorMessagetext" class="alert-heading mt-4"></h4>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="changePasswordBtn">Change Password</button>
+                <button type="button" class="btn btn-success" id="changePasswordBtn">Change Password</button>
             </div>
         </div>
     </div>
 </div>
+<?php
+// Get email notifications setting
+ $email_notifications = get_user_meta($user_id, 'email_notifications', true);
+?>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-    <!-- Footer -->
-    <footer class="bg-dark text-white py-5 mt-5">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-4 mb-4 mb-md-0">
-                    <h5 class="mb-3">JobFinder</h5>
-                    <p>Connecting top talent with world-class companies since 2020.</p>
-                    <div class="social-icons">
-                        <a href="#" class="text-white me-2"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" class="text-white me-2"><i class="fab fa-twitter"></i></a>
-                        <a href="#" class="text-white me-2"><i class="fab fa-linkedin-in"></i></a>
-                        <a href="#" class="text-white"><i class="fab fa-instagram"></i></a>
-                    </div>
-                </div>
-                <div class="col-md-2 mb-4 mb-md-0">
-                    <h5 class="mb-3">For Job Seekers</h5>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Browse Jobs</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Create Resume</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Job Alerts</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Career Advice</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-2 mb-4 mb-md-0">
-                    <h5 class="mb-3">For Employers</h5>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Post a Job</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Browse Candidates</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Pricing</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Recruiting Solutions</a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="col-md-4">
-                    <h5 class="mb-3">Stay Updated</h5>
-                    <p>Subscribe to our newsletter for the latest jobs and career tips.</p>
-                    <div class="input-group mb-3">
-                        <input type="email" class="form-control" placeholder="Your email" aria-label="Your email">
-                        <button class="btn btn-success" type="button">Subscribe</button>
-                    </div>
-                </div>
-            </div>
-            <hr class="my-4">
-            <div class="row">
-                <div class="col-md-6 text-center text-md-start">
-                    <p class="small mb-0">&copy; 2025 JobFinder. All rights reserved.</p>
-                </div>
-                <div class="col-md-6 text-center text-md-end">
-                    <ul class="list-inline mb-0">
-                        <li class="list-inline-item"><a href="#" class="text-white text-decoration-none small">Privacy
-                                Policy</a></li>
-                        <li class="list-inline-item"><a href="#" class="text-white text-decoration-none small">Terms of
-                                Service</a></li>
-                        <li class="list-inline-item"><a href="#" class="text-white text-decoration-none small">Contact
-                                Us</a></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </footer>
-    <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-    <script src="js/main.js"></script>
-    <!-- intlTelInput JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js"></script>
-</body>
-
-</html>
+<script>
+    // Pass email notifications setting to JavaScript
+    window.emailNotifications = <?php echo json_encode($email_notifications === '1'); ?>;
+</script>
+<?php
+}
+get_footer(); ?>

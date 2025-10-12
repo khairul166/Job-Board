@@ -1201,10 +1201,10 @@ jQuery(document).ready(function($) {
                 ageSlider.$inputMax.val(80);
             });
             
-            // Apply button functionality
-            $('.btn-apply').on('click', function() {
-                alert(`Filters applied!\nMin Age: ${ageSlider.selectedMin}\nMax Age: ${ageSlider.selectedMax}`);
-            });
+            // // Apply button functionality
+            // $('.btn-apply').on('click', function() {
+            //     //alert(`Filters applied!\nMin Age: ${ageSlider.selectedMin}\nMax Age: ${ageSlider.selectedMax}`);
+            // });
         });
 
 
@@ -1308,6 +1308,7 @@ jQuery(document).ready(function($) {
                     // Calculate positions
                     const minPercent = (this.selectedMin - this.minExperience) / (this.maxExperience - this.minExperience);
                     const maxPercent = (this.selectedMax - this.minExperience) / (this.maxExperience - this.minExperience);
+                    //console.log(minPercent, maxPercent);
                     
                     // Update thumbs positions (accounting for thumb width)
                     this.$thumbMin.style.left = `calc(${minPercent * 100}% - 11px)`;
@@ -1335,10 +1336,24 @@ jQuery(document).ready(function($) {
                 experienceSlider.$inputMax.value = 20;
             });
             
-            // Apply button functionality
-            document.querySelector('.btn-apply').addEventListener('click', function() {
-                const min = experienceSlider.selectedMin;
-                const max = experienceSlider.selectedMax;
-                alert(`Filters applied!\nMinimum Experience: ${min} years\nMaximum Experience: ${max} years`);
-            });
+            // // Apply button functionality
+            // document.querySelector('.btn-apply').addEventListener('click', function() {
+            //     const min = experienceSlider.selectedMin;
+            //     const max = experienceSlider.selectedMax;
+            //     alert(`Filters applied!\nMinimum Experience: ${min} years\nMaximum Experience: ${max} years`);
+            // });
         });
+
+
+//============================
+jQuery(document).ready(function($) {
+    // Initialize Select2 on the skills dropdown
+    $('#skills').select2({
+        placeholder: select2_vars.placeholder,
+        allowClear: true,
+        width: '100%',
+        multiple: true,
+        closeOnSelect: false
+    });
+});
+

@@ -31,37 +31,134 @@ add_action('wp_ajax_add_skills', 'add_skills_handler');
 add_action('wp_ajax_remove_skill', 'remove_skill_handler');
 add_action('wp_ajax_add_languages', 'add_languages_handler');
 add_action('wp_ajax_remove_language', 'remove_language_handler');
-// add_action('wp_ajax_submit_application', 'submit_application_handler');
 
-// function submit_application_handler() {
-//     check_ajax_referer('apply_nonce', 'nonce');
-//     $data = $_POST['data'];
-//     $user_id = $data['user_id'];
-//     $job_id = $data['job_id'];
+/**
+ * Send SMS notification
+ */
+function send_job_application_sms($to_number, $message) {
+    // Get SMS settings
+    $api_key = get_option('job_applications_sms_api_key');
+    $api_secret = get_option('job_applications_sms_api_secret');
+    $from_number = get_option('job_applications_sms_from_number');
+    
+    // If SMS settings are not configured, return false
+    if (empty($api_key) || empty($api_secret) || empty($from_number)) {
+        error_log('SMS settings are not configured');
+        return false;
+    }
+    
+    // This is a sample implementation using Twilio
+    // You might need to adjust this based on your SMS provider
+    
+    // If Twilio is not installed, try to load it
+    if (!class_exists('Twilio\Rest\Client')) {
+        // Try to include Twilio if it's in the includes directory
+        if (file_exists(get_template_directory() . '/inc/twilio/autoload.php')) {
+            require_once get_template_directory() . '/inc/twilio/autoload.php';
+        } else {
+            error_log('Twilio library not found');
+            return false;
+        }
+    }
+    
+    try {
+        // Initialize Twilio client
+        $client = new Twilio\Rest\Client($api_key, $api_secret);
+        
+        // Send SMS
+        $client->messages->create(
+            $to_number,
+            [
+                'from' => $from_number,
+                'body' => $message
+            ]
+        );
+        
+        return true;
+    } catch (Exception $e) {
+        error_log('SMS sending failed: ' . $e->getMessage());
+        return false;
+    }
+}
 
-//     // Save application (e.g., custom post type or custom table)
-//     // Example: Insert into a custom table
-//     global $wpdb;
-//     $table = $wpdb->prefix . 'job_applications';
-//     $wpdb->insert($table, [
-//         'user_id' => $user_id,
-//         'job_id' => $job_id,
-//         'full_name' => sanitize_text_field($data['full_name']),
-//         'email' => sanitize_email($data['email']),
-//         'contact_number' => sanitize_text_field($data['contact_number']),
-//         'resume_data' => maybe_serialize($data['resume']),
-//         'applied_at' => current_time('mysql')
-//     ]);
 
-//     wp_send_json_success('Application submitted successfully!');
-// }
+/**
+ * Send SMS notification for interview
+ */
+function send_interview_sms_notification($application, $action, $interview_date, $interview_location) {
+    // Check if phone number is available
+    if (empty($application->phone)) {
+        error_log('No phone number available for application ID: ' . $application->id);
+        return false;
+    }
+    
+    // Get job details
+    $job = get_post($application->job_id);
+    if (!$job) {
+        error_log('Job not found for application ID: ' . $application->id);
+        return false;
+    }
+    
+    // Get the appropriate template based on action
+    if ($action === 'schedule') {
+        $template = get_option('job_applications_sms_interview_template');
+    } else if ($action === 'reschedule') {
+        $template = get_option('job_applications_sms_reschedule_template');
+    } else {
+        error_log('Invalid action for SMS notification: ' . $action);
+        return false;
+    }
+    
+    // If no template is set, use a default one
+    if (empty($template)) {
+        if ($action === 'schedule') {
+            $template = 'Hello {candidate_name}, you have been selected for an interview for {job_title}. Your interview is scheduled on {interview_date} at {interview_time}. Location: {interview_location}. Please reply CONFIRM to confirm your attendance.';
+        } else {
+            $template = 'Hello {candidate_name}, your interview for {job_title} has been rescheduled to {new_interview_date} at {new_interview_time}. Location: {interview_location}. Please reply CONFIRM if you can attend.';
+        }
+    }
+    
+    // Split date and time
+    $date_parts = explode(' ', $interview_date);
+    $interview_date_only = isset($date_parts[0]) ? $date_parts[0] : '';
+    $interview_time_only = isset($date_parts[1]) ? $date_parts[1] : '';
+    
+    // Replace placeholders
+    $message = str_replace(
+        [
+            '{candidate_name}', 
+            '{job_title}', 
+            '{company_name}',
+            '{interview_date}',
+            '{interview_time}',
+            '{new_interview_date}',
+            '{new_interview_time}',
+            '{interview_location}'
+        ],
+        [
+            $application->full_name,
+            $job->post_title,
+            get_bloginfo('name'),
+            $interview_date_only,
+            $interview_time_only,
+            $interview_date_only,
+            $interview_time_only,
+            $interview_location
+        ],
+        $template
+    );
+    
+    // Send SMS
+    return send_job_application_sms($application->phone, $message);
+}
 
 function submit_application_handler() {
-    check_ajax_referer('apply_nonce', 'nonce'); // Verify nonce
-
+    // FIXED: Use check_ajax_referer with correct parameters
+    check_ajax_referer('apply_nonce', 'nonce');
+    
     global $wpdb;
     $table = $wpdb->prefix . 'job_applications';
-
+    
     // Get data from POST
     $user_id    = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
     $job_id     = isset($_POST['job_id']) ? intval($_POST['job_id']) : 0;
@@ -69,17 +166,19 @@ function submit_application_handler() {
     $email      = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
     $contact    = isset($_POST['contact_number']) ? sanitize_text_field($_POST['contact_number']) : '';
     $resume     = isset($_POST['resume']) ? sanitize_text_field($_POST['resume']) : '';
-
+    
+    // Debug log (remove in production)
+    error_log('Application data: ' . print_r($_POST, true));
+    
     // Check if user already applied
     $already_applied = $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(*) FROM $table WHERE user_id = %d AND job_id = %d",
         $user_id, $job_id
     ));
-
+    
     if ( $already_applied ) {
         wp_send_json_error('You have already applied for this job.');
     }
-
     // Insert application
     $inserted = $wpdb->insert(
         $table,
@@ -93,16 +192,49 @@ function submit_application_handler() {
             'applied_at'     => current_time('mysql'),
         )
     );
+    
+        if ( $inserted ) {
+            $job_title = get_the_title($job_id);
+            $apply_message = sprintf(
+                'Congratulations! Your application was submitted for the position of %s.',
+                $job_title
+            );
+            // Add notification to database
+            add_user_notification(
+                $user_id,  // User ID
+                $apply_message,               // Notification message
+                'Application',          // Notification type
+                $job_id           // Related item ID (application ID)
+            );
+            $subject = 'Application Received for ' . $job_title;
+            $message = 'Dear ' . $full_name . ",\n\n";
+            $message .= 'Thank you for applying for the position of ' . get_the_title($job_id) . ". We have received your application and our team will review it shortly.\n\n";
+            $message .= "Best regards,\n";
+            $message .= get_bloginfo('name');
+            $headers = array('Content-Type: text/plain; charset=UTF-8');
+            $email_notifications = get_user_meta($user_id, 'email_notifications', true);
+            if ($email_notifications !== '0') { // Send email only if notifications are enabled
+            // Try sending email
+            $mail_sent = wp_mail($email, $subject, $message, $headers);
+            }
+            // Log the result
+            if ( $mail_sent ) {
+                error_log("✅ Application email sent successfully to: $email for job_id: $job_id");
+            } else {
+                error_log("❌ Failed to send application email to: $email for job_id: $job_id");
+            }
 
-    if ( $inserted ) {
-        wp_send_json_success('Application submitted successfully!');
-    } else {
-        wp_send_json_error('Failed to submit application.');
-    }
+            // ✅ Now send JSON response AFTER email
+            wp_send_json_success('Application submitted successfully!');
+        } else {
+            error_log('DB insert error: ' . $wpdb->last_error);
+            wp_send_json_error('Failed to submit application.');
 }
 
+}
 add_action('wp_ajax_submit_application', 'submit_application_handler');
 add_action('wp_ajax_nopriv_submit_application', 'submit_application_handler');
+
 
 
 // About Me Handler
@@ -140,6 +272,9 @@ function update_personal_info_handler() {
         wp_send_json_error('User not logged in');
     }
     
+    // Check if "Same as Present Address" is checked
+    $same_as_present = isset($_POST['sameAsPresent']) && $_POST['sameAsPresent'] === 'true';
+    
     // Sanitize and validate input
     $personal_info = array(
         'full_name' => sanitize_text_field($_POST['fullName']),
@@ -153,10 +288,28 @@ function update_personal_info_handler() {
         'contact_number' => sanitize_text_field($_POST['contactNumber']),
         'alt_contact' => sanitize_text_field($_POST['altContact']),
         'email' => sanitize_email($_POST['email']),
-        'present_address' => sanitize_textarea_field($_POST['presentAddress']),
-        'presentcity' => sanitize_textarea_field($_POST['presentcity']),
+        'present_address' => sanitize_textarea_field($_POST['presentaddressline']),
+        'permanent_address' => sanitize_textarea_field($_POST['permanentaddressline']),
         'placeofbirth' => sanitize_textarea_field($_POST['placeofbirth']),
+        // Address fields
+        'present_division' => sanitize_text_field($_POST['division']),
+        'present_district' => sanitize_text_field($_POST['district']),
+        'present_upazila' => sanitize_text_field($_POST['upazila']),
+        'present_postcode' => sanitize_text_field($_POST['presentpostcode'])
     );
+    
+    // If "Same as Present Address" is checked, copy present address to permanent address
+    if ($same_as_present) {
+        $personal_info['permanent_division'] = $personal_info['present_division'];
+        $personal_info['permanent_district'] = $personal_info['present_district'];
+        $personal_info['permanent_upazila'] = $personal_info['present_upazila'];
+        $personal_info['permanent_postcode'] = $personal_info['present_postcode'];
+    } else {
+        $personal_info['permanent_division'] = sanitize_text_field($_POST['permanent_division']);
+        $personal_info['permanent_district'] = sanitize_text_field($_POST['permanent_district']);
+        $personal_info['permanent_upazila'] = sanitize_text_field($_POST['permanent_upazila']);
+        $personal_info['permanent_postcode'] = sanitize_text_field($_POST['permanent_postcode']);
+    }
     
     // Update user meta
     foreach ($personal_info as $key => $value) {
@@ -469,54 +622,6 @@ function update_work_experience_handler() {
     ));
 }
 
-// Skills Handler
-// function update_skills_handler() {
-//     // Verify nonce
-//     if (!wp_verify_nonce($_POST['nonce'], 'profile_nonce')) {
-//         wp_send_json_error('Security check failed');
-//     }
-    
-//     // Get current user ID
-//     $user_id = get_current_user_id();
-//     if (!$user_id) {
-//         wp_send_json_error('User not logged in');
-//     }
-    
-//     // Sanitize and split skills
-//     $skills_input = sanitize_text_field($_POST['skills']);
-//     $skills = array_map('trim', explode(',', $skills_input));
-//     $skills = array_filter($skills); // Remove empty values
-    
-//     // Update user meta
-//     update_user_meta($user_id, 'skills', $skills);
-    
-//     wp_send_json_success(array('message' => 'Skills updated successfully'));
-// }
-
-// // Languages Handler
-// function update_languages_handler() {
-//     // Verify nonce
-//     if (!wp_verify_nonce($_POST['nonce'], 'profile_nonce')) {
-//         wp_send_json_error('Security check failed');
-//     }
-    
-//     // Get current user ID
-//     $user_id = get_current_user_id();
-//     if (!$user_id) {
-//         wp_send_json_error('User not logged in');
-//     }
-    
-//     // Sanitize and split languages
-//     $languages_input = sanitize_text_field($_POST['languages']);
-//     $languages = array_map('trim', explode(',', $languages_input));
-//     $languages = array_filter($languages); // Remove empty values
-    
-//     // Update user meta
-//     update_user_meta($user_id, 'languages', $languages);
-    
-//     wp_send_json_success(array('message' => 'Languages updated successfully'));
-// }
-
 // References Handler
 function update_references_handler() {
     // Verify nonce
@@ -569,8 +674,13 @@ function update_references_handler() {
 // Resume Upload Handler
 function upload_resume_handler() {
     // Verify nonce
-    if (!wp_verify_nonce($_POST['nonce'], 'profile_nonce')) {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'profile_nonce')) {
         wp_send_json_error('Security check failed');
+    }
+    
+    // Check if user is logged in
+    if (!is_user_logged_in()) {
+        wp_send_json_error('User not logged in');
     }
     
     // Get current user ID
@@ -605,14 +715,14 @@ function upload_resume_handler() {
     // Handle file upload
     $upload_dir = wp_upload_dir();
     $filename = sanitize_file_name($file['name']);
-    $filename = $user_id . '_' . time() . '_' . $filename; // Add user ID and timestamp to filename
+    $filename = $user_id . '_' . time() . '_' . $filename; // Add user ID and timestamp
     $file_path = $upload_dir['path'] . '/' . $filename;
     
     if (!move_uploaded_file($file['tmp_name'], $file_path)) {
         wp_send_json_error('Failed to move uploaded file');
     }
     
-    // Update user meta with file info
+    // Update user meta
     update_user_meta($user_id, 'resume_file', $upload_dir['url'] . '/' . $filename);
     update_user_meta($user_id, 'resume_filename', $file['name']);
     update_user_meta($user_id, 'resume_uploaded', current_time('mysql'));
@@ -624,22 +734,8 @@ function upload_resume_handler() {
     ));
 }
 
-// Enqueue scripts
-// add_action('wp_enqueue_scripts', function() {
-//     wp_enqueue_script(
-//         'profile-upload',
-//         get_template_directory_uri() . '/js/custom-ajax.js',
-//         ['jquery'],
-//         null,
-//         true
-//     );
-//     wp_localize_script('profile-upload', 'profile_upload', [
-//         'ajaxurl' => admin_url('admin-ajax.php'),
-//         'nonce'   => wp_create_nonce('profile_nonce')
-//     ]);
-// });
 
-// Register AJAX handlers
+// Register AJAX handler for profile picture upload
 add_action('wp_ajax_upload_profile_picture_handler', 'upload_profile_picture_handler');
 add_action('wp_ajax_nopriv_upload_profile_picture_handler', 'upload_profile_picture_handler');
 
@@ -648,41 +744,49 @@ function upload_profile_picture_handler() {
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'profile_nonce')) {
         wp_send_json_error('Security check failed');
     }
-
+    
+    // Check if user is logged in
     $user_id = get_current_user_id();
     if (!$user_id) {
         wp_send_json_error('User not logged in');
     }
-
+    
+    // Check if file was uploaded
     if (empty($_FILES['profilepic'])) {
         wp_send_json_error('No file uploaded');
     }
-
+    
     $file = $_FILES['profilepic'];
+    
+    // Check for upload errors
     if ($file['error'] !== UPLOAD_ERR_OK) {
         wp_send_json_error('File upload error: ' . $file['error']);
     }
-
+    
+    // Validate file type
     $allowed_types = ['image/jpeg', 'image/jpg'];
     if (!in_array($file['type'], $allowed_types)) {
         wp_send_json_error('Invalid file type. Only JPG images are allowed.');
     }
-
+    
+    // Validate file size (2MB limit)
     if ($file['size'] > 2 * 1024 * 1024) {
         wp_send_json_error('File size exceeds 2MB limit.');
     }
-
+    
+    // Prepare upload directory
     $upload_dir = wp_upload_dir();
     $filename = $user_id . '_profile_' . time() . '.jpg';
     $file_path = $upload_dir['path'] . '/' . $filename;
-
+    
+    // Move uploaded file
     if (!move_uploaded_file($file['tmp_name'], $file_path)) {
         wp_send_json_error('Failed to move uploaded file');
     }
-
-    // Update user meta
+    
+    // Update user meta with profile picture URL
     update_user_meta($user_id, 'profile_picture', $upload_dir['url'] . '/' . $filename);
-
+    
     // Create attachment and set as user avatar
     $attachment = array(
         'post_mime_type' => $file['type'],
@@ -690,21 +794,23 @@ function upload_profile_picture_handler() {
         'post_content'   => '',
         'post_status'    => 'inherit'
     );
-
+    
     $attach_id = wp_insert_attachment($attachment, $file_path);
+    
+    // Generate attachment metadata
     require_once(ABSPATH . 'wp-admin/includes/image.php');
     $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
     wp_update_attachment_metadata($attach_id, $attach_data);
-
-    // Set as user avatar (optional)
+    
+    // Set as user avatar (optional - requires WP User Avatar plugin or similar)
     update_user_meta($user_id, 'wp_user_avatar', $attach_id);
-
+    
+    // Return success response
     wp_send_json_success([
         'message' => 'Profile picture uploaded successfully',
         'url' => $upload_dir['url'] . '/' . $filename
     ]);
 }
-
 
 // Delete Resume Handler
 function delete_resume_handler() {
@@ -853,91 +959,6 @@ add_action('wp_ajax_reject_applicant', 'ajax_reject_applicant');
 add_action('wp_ajax_download_cv', 'ajax_download_cv');
 add_action('wp_ajax_get_cv_details', 'ajax_get_cv_details');
 
-// function ajax_shortlist_applicant() {
-//     // Debug log
-//     error_log('AJAX shortlist_applicant called');
-//     error_log('POST data: ' . print_r($_POST, true));
-    
-//     // Verify nonce
-//     check_ajax_referer('job_applications_nonce', 'nonce');
-    
-//     // Check user permissions
-//     if (!current_user_can('manage_options')) {
-//         wp_send_json_error('You do not have sufficient permissions to access this page.');
-//     }
-    
-//     $applicant_id = isset($_POST['applicant_id']) ? intval($_POST['applicant_id']) : 0;
-//     error_log('Applicant ID: ' . $applicant_id);
-    
-//     if (!$applicant_id) {
-//         wp_send_json_error('Invalid applicant ID');
-//     }
-    
-//     global $wpdb;
-//     $table = $wpdb->prefix . 'job_applications';
-    
-//     // Check if the application exists
-//     $application = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $applicant_id));
-//     if (!$application) {
-//         wp_send_json_error('Application not found');
-//     }
-    
-//     // Update application status
-//     $result = $wpdb->update(
-//         $table,
-//         array('status' => 'shortlisted'),
-//         array('id' => $applicant_id),
-//         array('%s'),
-//         array('%d')
-//     );
-    
-//     if ($result === false) {
-//         wp_send_json_error('Database error: ' . $wpdb->last_error);
-//     }
-    
-//     wp_send_json_success('Applicant shortlisted successfully');
-// }
-
-// // Function to reject applicant
-// function ajax_reject_applicant() {
-//     // Verify nonce
-//     check_ajax_referer('job_applications_nonce', 'nonce');
-    
-//     // Check user permissions
-//     if (!current_user_can('manage_options')) {
-//         wp_send_json_error('You do not have sufficient permissions to access this page.');
-//     }
-    
-//     $applicant_id = isset($_POST['applicant_id']) ? intval($_POST['applicant_id']) : 0;
-    
-//     if (!$applicant_id) {
-//         wp_send_json_error('Invalid applicant ID');
-//     }
-    
-//     global $wpdb;
-//     $table = $wpdb->prefix . 'job_applications';
-    
-//     // Check if the application exists
-//     $application = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $applicant_id));
-//     if (!$application) {
-//         wp_send_json_error('Application not found');
-//     }
-    
-//     // Update application status
-//     $result = $wpdb->update(
-//         $table,
-//         array('status' => 'rejected'),
-//         array('id' => $applicant_id),
-//         array('%s'),
-//         array('%d')
-//     );
-    
-//     if ($result === false) {
-//         wp_send_json_error('Database error: ' . $wpdb->last_error);
-//     }
-    
-//     wp_send_json_success('Applicant rejected successfully');
-// }
 function add_user_notification($user_id, $message, $type, $related_item_id = null) {
     global $wpdb;
     
@@ -977,6 +998,52 @@ function add_user_notification($user_id, $message, $type, $related_item_id = nul
     }
 }
 
+function get_default_application_shortlisted_email() {
+    return "Dear {name},
+
+Your application for the position of {job_title} has been shortlisted.
+
+We will contact you soon with further details about the next steps.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+
+// Send application shortlisted email
+function send_application_shortlisted_email($application_id) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    
+    $subject = sprintf('Application Shortlisted for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('application_shortlisted_email', get_default_application_shortlisted_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}'),
+        array($application->full_name, $job_title),
+        $email_template
+    );
+    error_log('Sending shortlisted email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
+}
 
 function ajax_shortlist_applicant() {
     // Debug log
@@ -1042,10 +1109,63 @@ function ajax_shortlist_applicant() {
             'shortlisted',          // Notification type
             $applicant_id           // Related item ID (application ID)
         );
+        error_log('Notification added for user ID: ' . $application->user_id);
+
+        $email_notifications = get_user_meta($user_id, 'email_notifications', true);
+        if ($email_notifications !== '0') { // Send email only if notifications are enabled
         send_application_shortlisted_email($applicant_id);
+        }
+
     }
     
     wp_send_json_success('Applicant shortlisted successfully');
+}
+
+function get_default_application_rejected_email() {
+    return "Dear {name},
+
+We regret to inform you that your application for the position of {job_title} was not successful.
+
+We appreciate your interest in our organization and wish you the best in your job search.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+// Send application rejected email
+function send_application_rejected_email($application_id) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    
+    $subject = sprintf('Application Status for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('application_rejected_email', get_default_application_rejected_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}'),
+        array($application->full_name, $job_title),
+        $email_template
+    );
+    
+    error_log('Sending rejected email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
 }
 
 // Function to reject applicant
@@ -1108,7 +1228,11 @@ function ajax_reject_applicant() {
             'rejected',             // Notification type
             $applicant_id           // Related item ID (application ID)
         );
+        $email_notifications = get_user_meta($user_id, 'email_notifications', true);
+        if ($email_notifications !== '0') { // Send email only if notifications are enabled
         send_application_rejected_email($applicant_id);
+        }
+
     }
     
     wp_send_json_success('Applicant rejected successfully');
@@ -1283,10 +1407,17 @@ function generate_resume_html($user_id) {
 <html lang="en">
 
 <head>
-    <meta charset="<?php echo bloginfo('charset'); ?>">
+    <!-- <meta charset="<?php //echo bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resume Of <?php echo esc_html($full_name) . ' | ' . get_bloginfo('name'); ?></title>
-    <style>
+    <title>Resume Of <?php// echo esc_html($full_name) . ' | ' . get_bloginfo('name'); ?></title> -->
+    <!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+    <!-- <style>
         :root,
         [data-bs-theme="light"] {
             --bs-blue: #0d6efd;
@@ -15143,7 +15274,7 @@ function generate_resume_html($user_id) {
                 display: none !important;
             }
         }
-    </style>
+    </style> -->
 
     <style>
         :root {
@@ -16393,7 +16524,7 @@ function generate_resume_html($user_id) {
         <div class="resume-header">
             <div class="row align-items-center">
                 <div class="col-sm-3 text-center">
-                    <img src="<?php echo esc_url($profile_picture); ?>" alt="<?php echo esc_attr($full_name); ?>" class="resume-photo rounded-circle">
+                    <img src="<?php echo esc_url($profile_picture); ?>" alt="<?php echo esc_attr($full_name); ?>" class="resume-photo img-circle">
                 </div>
                 <div class="col-sm-7">
                     <div class="header-content">
@@ -16851,6 +16982,60 @@ function ajax_bulk_reject() {
 }
 add_action('wp_ajax_bulk_reject', 'ajax_bulk_reject');
 
+// Default email templates
+function get_default_interview_scheduled_email() {
+    return "Dear {name},
+
+Your interview for the position of {job_title} has been scheduled on {interview_date}.
+
+Location: {location}
+
+{notes}
+
+Please be prepared and on time.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+
+// Send interview scheduled email
+function send_interview_scheduled_email($application_id, $notes = '') {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($application->interview_date));
+    
+    $subject = sprintf('Interview Scheduled for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('interview_scheduled_email', get_default_interview_scheduled_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}', '{interview_date}', '{location}', '{notes}'),
+        array($application->full_name, $job_title, $formatted_date, $application->interview_location, $notes),
+        $email_template
+    );
+    
+    error_log('Sending interview scheduled email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
+}
+
 // Schedule Interview AJAX Handler
 function ajax_schedule_interview() {
     // Debug logging
@@ -16917,13 +17102,14 @@ function ajax_schedule_interview() {
             $success_count++;
             error_log('Successfully updated application ID: ' . $application_id);
             
-            // Create notification for applicant
-            $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+            // Get application details
+            $application = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $application_id));
             
             if ($application) {
                 $job_title = get_the_title($application->job_id);
                 $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($mysql_datetime));
                 
+                // Create notification for applicant
                 $message = sprintf(
                     'Your interview for %s has been scheduled on %s at %s.',
                     $job_title,
@@ -16938,8 +17124,19 @@ function ajax_schedule_interview() {
                     $application_id
                 );
                 
-                // Send email notification
-                send_interview_scheduled_email($application_id, $notes);
+                // Check notification method preference
+                $notification_method = get_option('job_applications_notification_method', 'email');
+                
+                // Send email notification if enabled
+                $email_notifications = get_user_meta($application->user_id, 'email_notifications', true);
+                if (($notification_method === 'email' || $notification_method === 'both') && $email_notifications !== '0') {
+                    send_interview_scheduled_email($application_id);
+                }
+                
+                // Send SMS notification if enabled
+                if ($notification_method === 'sms' || $notification_method === 'both') {
+                    send_interview_sms_notification($application, 'schedule', $formatted_date, $interview_location);
+                }
             }
         }
     }
@@ -16958,6 +17155,62 @@ function ajax_schedule_interview() {
     }
 }
 add_action('wp_ajax_schedule_interview', 'ajax_schedule_interview');
+
+
+
+
+function get_default_interview_rescheduled_email() {
+    return "Dear {name},
+
+Your interview for the position of {job_title} has been rescheduled to {interview_date}.
+
+Location: {location}
+
+{notes}
+
+Please be prepared and on time.
+
+Best regards,
+" . get_bloginfo('name');
+}
+
+// Send interview rescheduled email
+function send_interview_rescheduled_email($application_id, $notes = '') {
+    global $wpdb;
+    $table = $wpdb->prefix . 'job_applications';
+    
+    // Get application and user details
+    $application = $wpdb->get_row($wpdb->prepare(
+        "SELECT a.*, u.user_email, u.display_name 
+        FROM $table a 
+        JOIN {$wpdb->users} u ON a.user_id = u.ID 
+        WHERE a.id = %d",
+        $application_id
+    ));
+    
+    if (!$application) {
+        return false;
+    }
+    
+    $job_title = get_the_title($application->job_id);
+    $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($application->interview_date));
+    
+    $subject = sprintf('Interview Rescheduled for %s', $job_title);
+    
+    // Get custom email template
+    $email_template = get_option('interview_rescheduled_email', get_default_interview_rescheduled_email());
+    
+    // Replace placeholders
+    $message = str_replace(
+        array('{name}', '{job_title}', '{interview_date}', '{location}', '{notes}'),
+        array($application->full_name, $job_title, $formatted_date, $application->interview_location, $notes),
+        $email_template
+    );
+    
+    error_log('Sending interview rescheduled email to: ' . $application->user_email);
+    return wp_mail($application->user_email, $subject, $message);
+}
+
 
 // Reschedule Interview AJAX Handler
 function ajax_reschedule_interview() {
@@ -17016,13 +17269,14 @@ function ajax_reschedule_interview() {
     
     error_log('Successfully updated application ID: ' . $application_id);
     
-    // Create notification for applicant
-    $application = $wpdb->get_row($wpdb->prepare("SELECT user_id, job_id FROM $table WHERE id = %d", $application_id));
+    // Get application details
+    $application = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $application_id));
     
     if ($application) {
         $job_title = get_the_title($application->job_id);
         $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($mysql_datetime));
         
+        // Create notification for applicant
         $message = sprintf(
             'Your interview for %s has been rescheduled to %s at %s.',
             $job_title,
@@ -17037,8 +17291,19 @@ function ajax_reschedule_interview() {
             $application_id
         );
         
-        // Send email notification
-        send_interview_rescheduled_email($application_id, $notes);
+        // Check notification method preference
+        $notification_method = get_option('job_applications_notification_method', 'email');
+        
+        // Send email notification if enabled
+        $email_notifications = get_user_meta($application->user_id, 'email_notifications', true);
+        if (($notification_method === 'email' || $notification_method === 'both') && $email_notifications !== '0') {
+            send_interview_rescheduled_email($application_id);
+        }
+        
+        // Send SMS notification if enabled
+        if ($notification_method === 'sms' || $notification_method === 'both') {
+            send_interview_sms_notification($application, 'reschedule', $formatted_date, $interview_location);
+        }
     }
     
     // Return the same format as schedule_interview
@@ -17049,6 +17314,7 @@ function ajax_reschedule_interview() {
     ));
 }
 add_action('wp_ajax_reschedule_interview', 'ajax_reschedule_interview');
+
 
 // Update the send_interview_email function to handle notes
 function send_interview_email($application_id, $interview_date, $location, $notes = '', $is_reschedule = false) {
@@ -17096,3 +17362,750 @@ function send_interview_email($application_id, $interview_date, $location, $note
     
     return wp_mail($application->user_email, $subject, $message);
 }
+
+
+function my_test_function(){
+    check_ajax_referer('test_ajax_nonce', 'nonce');
+    
+    $userid= $_POST['username'];
+    $password = $_POST['password'];
+    $user = wp_authenticate( $userid, $password);
+    if(is_wp_error( $user )){
+        wp_send_json_error( 
+            array(
+                'massage' => 'Invalid username or password ❌',
+                'user_id' => $user->ID,
+                'user_login' => $user->user_login,
+            )
+            );
+    }else{
+        wp_send_json_success( 
+            array(
+                'massage' => 'User Found',
+                'user_id' => $user->ID,
+                'user_login' => $user->user_login,
+            )
+            );
+    }
+}
+add_action('wp_ajax_my_test_action', 'my_test_function');
+add_action('wp_ajax_nopriv_my_test_action', 'my_test_function');
+
+
+
+
+/**
+ * AJAX login handler
+ */
+function ajax_login_handler() {
+    // Check nonce for security
+    check_ajax_referer('ajax-login-nonce', 'security');
+    
+    // Get form data
+    $info = array();
+    $info['user_login'] = sanitize_user($_POST['log']);
+    $info['user_password'] = $_POST['pwd'];
+    $info['remember'] = isset($_POST['rememberme']) ? true : false;
+    
+    // Get redirect URL
+    $redirect_to = isset($_POST['redirect_to']) ? $_POST['redirect_to'] : home_url('/user-profile');
+    
+    // Log the attempt (for debugging)
+    error_log('AJAX login attempt for user: ' . $info['user_login']);
+    
+    // Signon the user
+    $user_signon = wp_signon($info, false);
+    
+    if (is_wp_error($user_signon)) {
+        $error_message = $user_signon->get_error_message();
+        error_log('Login failed: ' . $error_message);
+        
+        echo json_encode(array(
+            'loggedin' => false,
+            'message' => $error_message
+        ));
+    } else {
+        error_log('Login successful for user: ' . $info['user_login']);
+        
+        echo json_encode(array(
+            'loggedin' => true,
+            'message' => __('Login successful, redirecting...', 'job-listing'),
+            'redirect' => $redirect_to
+        ));
+    }
+    
+    die();
+}
+add_action('wp_ajax_nopriv_ajaxlogin', 'ajax_login_handler');
+add_action('wp_ajax_ajaxlogin', 'ajax_login_handler');
+
+/**
+ * Enqueue scripts for AJAX login
+ */
+function job_listing_ajax_login_scripts() {
+    // Only load on login page
+    if (is_page_template('template-login.php')) {
+        // Make sure jQuery is loaded
+        wp_enqueue_script('jquery');
+        
+        // Load your existing custom-ajax.js file
+        wp_enqueue_script(
+            'custom-ajax-script', 
+            get_template_directory_uri() . '/js/custom-ajax.js', 
+            array('jquery'), 
+            '1.0', 
+            true
+        );
+        
+        // Localize script to pass PHP variables to JavaScript
+        wp_localize_script('custom-ajax-script', 'ajax_login_object', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'redirecturl' => home_url('/user-profile'),
+            'loadingmessage' => __('Sending user info, please wait...', 'job-listing')
+        ));
+    }
+}
+add_action('wp_enqueue_scripts', 'job_listing_ajax_login_scripts', 999); // Use high priority
+
+
+
+
+// ===============signup page codes===========
+/**
+ * Enqueue scripts for AJAX signup
+ */
+function job_listing_ajax_signup_scripts() {
+    // Only load on signup page
+    if (is_page_template('template-signup.php')) {
+        // Make sure jQuery is loaded
+        wp_enqueue_script('jquery');
+        
+        // Load your existing custom-ajax.js file
+        wp_enqueue_script(
+            'custom-ajax-script', 
+            get_template_directory_uri() . '/js/custom-ajax.js', 
+            array('jquery'), 
+            '1.0', 
+            true
+        );
+        
+        // Localize script to pass PHP variables to JavaScript
+        wp_localize_script('custom-ajax-script', 'ajax_signup_object', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'redirecturl' => home_url('/user-profile'),
+            'loadingmessage' => __('Creating your account, please wait...', 'job-listing'),
+            'passwords_do_not_match' => __('Passwords do not match.', 'job-listing'),
+            'accept_terms_error' => __('You must accept the terms and conditions to sign up.', 'job-listing'),
+            'error_occurred' => __('An error occurred. Please try again.', 'job-listing')
+        ));
+    }
+}
+add_action('wp_enqueue_scripts', 'job_listing_ajax_signup_scripts', 999);
+
+/**
+ * AJAX signup handler
+ */
+function ajax_signup_handler() {
+    // Check nonce for security
+    check_ajax_referer('ajax-signup-nonce', 'security');
+    
+    // Get form data
+    $username = sanitize_user($_POST['username']);
+    $email = sanitize_email($_POST['email']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    $terms = isset($_POST['terms']) ? true : false;
+    
+    // Get redirect URL
+    $redirect_to = isset($_POST['redirect_to']) ? $_POST['redirect_to'] : home_url('/login');
+    
+    // Basic validation
+    $errors = array();
+    
+    // Check if username is valid
+    if (username_exists($username)) {
+        $errors[] = __('Username already exists. Please choose another one.', 'job-listing');
+    }
+    
+    // Check if email is valid
+    if (!is_email($email)) {
+        $errors[] = __('Please enter a valid email address.', 'job-listing');
+    }
+    
+    // Check if email is already registered
+    if (email_exists($email)) {
+        $errors[] = __('Email is already registered. Please use another email or try logging in.', 'job-listing');
+    }
+    
+    // Check password strength
+    if (strlen($password) < 8) {
+        $errors[] = __('Password must be at least 8 characters long.', 'job-listing');
+    }
+    
+    // Check if passwords match
+    if ($password !== $confirm_password) {
+        $errors[] = __('Passwords do not match.', 'job-listing');
+    }
+    
+    // Check if terms are accepted
+    if (!$terms) {
+        $errors[] = __('You must accept the terms and conditions to sign up.', 'job-listing');
+    }
+    
+    // If there are errors, return them
+    if (!empty($errors)) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => implode('<br>', $errors)
+        ));
+        die();
+    }
+    
+    // Create user
+    $user_id = wp_create_user($username, $password, $email);
+    
+    // Check if user was created successfully
+    if (is_wp_error($user_id)) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => $user_id->get_error_message()
+        ));
+        die();
+    }
+    
+    // Log the new user in
+    //wp_set_auth_cookie($user_id, true);
+    //wp_set_current_user($user_id);
+    
+    // Send welcome email
+    wp_new_user_notification($user_id, null, 'both');
+    
+    // Return success
+    echo json_encode(array(
+        'success' => true,
+        'message' => __('Registration successful! Redirecting to login page...', 'job-listing'),
+        'redirect' => $redirect_to
+    ));
+    
+    die();
+}
+add_action('wp_ajax_nopriv_ajaxsignup', 'ajax_signup_handler');
+add_action('wp_ajax_ajaxsignup', 'ajax_signup_handler');
+
+/**
+ * Redirect default registration page to custom signup page
+ */
+function redirect_to_custom_signup() {
+    // Check if we're on the default registration page
+    if ($GLOBALS['pagenow'] === 'wp-login.php' && isset($_GET['action']) && $_GET['action'] === 'register') {
+        // Get the URL of your custom signup page
+        $custom_signup_url = get_permalink(get_page_by_path('signup'));
+        
+        // If we can't find the page by path, try to find it by template
+        if (!$custom_signup_url) {
+            $signup_page = get_pages(array(
+                'meta_key' => '_wp_page_template',
+                'meta_value' => 'template-signup.php'
+            ));
+            
+            if ($signup_page) {
+                $custom_signup_url = get_permalink($signup_page[0]->ID);
+            } else {
+                $custom_signup_url = home_url('/signup'); // Fallback
+            }
+        }
+        
+        wp_redirect($custom_signup_url);
+        exit;
+    }
+}
+add_action('init', 'redirect_to_custom_signup');
+
+/**
+ * Replace default registration URL with custom signup URL
+ */
+function custom_signup_url($register_url) {
+    $custom_signup_url = get_permalink(get_page_by_path('signup'));
+    
+    // If we can't find the page by path, try to find it by template
+    if (!$custom_signup_url) {
+        $signup_page = get_pages(array(
+            'meta_key' => '_wp_page_template',
+            'meta_value' => 'template-signup.php'
+        ));
+        
+        if ($signup_page) {
+            $custom_signup_url = get_permalink($signup_page[0]->ID);
+        } else {
+            $custom_signup_url = home_url('/signup'); // Fallback
+        }
+    }
+    
+    return $custom_signup_url;
+}
+add_filter('register_url', 'custom_signup_url');
+
+
+
+/**
+ * Enqueue scripts for AJAX forgot password
+ */
+function job_listing_ajax_forgot_password_scripts() {
+    // Only load on forgot password page
+    if (is_page_template('forgot-password.php')) {
+        // Make sure jQuery is loaded
+        wp_enqueue_script('jquery');
+        
+        // Load your existing custom-ajax.js file
+        wp_enqueue_script(
+            'custom-ajax-script', 
+            get_template_directory_uri() . '/js/custom-ajax.js', 
+            array('jquery'), 
+            '1.0', 
+            true
+        );
+        
+        // Localize script to pass PHP variables to JavaScript
+        wp_localize_script('custom-ajax-script', 'ajax_forgot_password_object', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'redirecturl' => home_url('/login'),
+            'loadingmessage' => __('Sending password reset email, please wait...', 'job-listing'),
+            'email_not_found' => __('No user found with that email address.', 'job-listing'),
+            'email_sent' => __('Password reset email has been sent. Please check your inbox.', 'job-listing'),
+            'error_occurred' => __('An error occurred. Please try again.', 'job-listing')
+        ));
+    }
+}
+add_action('wp_enqueue_scripts', 'job_listing_ajax_forgot_password_scripts', 999);
+
+/**
+ * AJAX forgot password handler
+ */
+function ajax_forgot_password_handler() {
+    // Check nonce for security
+    check_ajax_referer('ajax-forgot-password-nonce', 'security');
+    
+    // Get form data
+    $email = sanitize_email($_POST['email']);
+    
+    // Get redirect URL
+    $redirect_to = isset($_POST['redirect_to']) ? $_POST['redirect_to'] : home_url('/login');
+    
+    // Check if email exists
+    $user = get_user_by('email', $email);
+    
+    if (!$user) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => __('No user found with that email address.', 'job-listing')
+        ));
+        die();
+    }
+    
+    // Generate password reset key
+    $reset_key = get_password_reset_key($user);
+    
+    if (is_wp_error($reset_key)) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => __('An error occurred while generating the reset key.', 'job-listing')
+        ));
+        die();
+    }
+    
+    // Create custom reset URL
+    $custom_reset_url = get_permalink(get_page_by_path('password-reset'));
+    
+    // If we can't find the page by path, try to find it by template
+    if (!$custom_reset_url) {
+        $reset_page = get_pages(array(
+            'meta_key' => '_wp_page_template',
+            'meta_value' => 'password-reset.php'
+        ));
+        
+        if ($reset_page) {
+            $custom_reset_url = get_permalink($reset_page[0]->ID);
+        } else {
+            $custom_reset_url = home_url('/password-reset'); // Fallback
+        }
+    }
+    
+    // Add parameters
+    $reset_url = add_query_arg(array(
+        'key' => $reset_key,
+        'login' => rawurlencode($user->user_login)
+    ), $custom_reset_url);
+    
+    // Set up email
+    $subject = __('Password Reset Request', 'job-listing');
+    $message = __('Hello,', 'job-listing') . "\r\n\r\n";
+    $message .= __('You requested a password reset for your account on', 'job-listing') . ' ' . get_bloginfo('name') . ".\r\n\r\n";
+    $message .= __('To reset your password, visit the following address:', 'job-listing') . "\r\n\r\n";
+    $message .= $reset_url . "\r\n\r\n";
+    $message .= __('If you did not request this, please ignore this email.', 'job-listing') . "\r\n\r\n";
+    $message .= __('Thank you,', 'job-listing') . "\r\n";
+    $message .= get_bloginfo('name') . "\r\n";
+    
+    $headers = array('Content-Type: text/plain; charset=UTF-8');
+    
+    // Send email
+    $sent = wp_mail($email, $subject, $message, $headers);
+    
+    if ($sent) {
+        echo json_encode(array(
+            'success' => true,
+            'message' => __('Password reset email has been sent. Please check your inbox.', 'job-listing'),
+            'redirect' => $redirect_to
+        ));
+    } else {
+        echo json_encode(array(
+            'success' => false,
+            'message' => __('Failed to send password reset email. Please try again.', 'job-listing')
+        ));
+    }
+    
+    die();
+}
+add_action('wp_ajax_nopriv_ajaxforgotpassword', 'ajax_forgot_password_handler');
+add_action('wp_ajax_ajaxforgotpassword', 'ajax_forgot_password_handler');
+
+/**
+ * Redirect default lost password page to custom forgot password page
+ */
+function redirect_to_custom_forgot_password() {
+    // Check if we're on the default lost password page
+    if ($GLOBALS['pagenow'] === 'wp-login.php' && isset($_GET['action']) && $_GET['action'] === 'lostpassword') {
+        // Get the URL of your custom forgot password page
+        $custom_forgot_password_url = get_permalink(get_page_by_path('forgot-password'));
+        
+        // If we can't find the page by path, try to find it by template
+        if (!$custom_forgot_password_url) {
+            $forgot_password_page = get_pages(array(
+                'meta_key' => '_wp_page_template',
+                'meta_value' => 'forgot-password.php'
+            ));
+            
+            if ($forgot_password_page) {
+                $custom_forgot_password_url = get_permalink($forgot_password_page[0]->ID);
+            } else {
+                $custom_forgot_password_url = home_url('/forgot-password'); // Fallback
+            }
+        }
+        
+        wp_redirect($custom_forgot_password_url);
+        exit;
+    }
+}
+add_action('init', 'redirect_to_custom_forgot_password');
+
+/**
+ * Replace default lost password URL with custom forgot password URL
+ */
+function custom_forgot_password_url($lostpassword_url) {
+    $custom_forgot_password_url = get_permalink(get_page_by_path('forgot-password'));
+    
+    // If we can't find the page by path, try to find it by template
+    if (!$custom_forgot_password_url) {
+        $forgot_password_page = get_pages(array(
+            'meta_key' => '_wp_page_template',
+            'meta_value' => 'forgot-password.php'
+        ));
+        
+        if ($forgot_password_page) {
+            $custom_forgot_password_url = get_permalink($forgot_password_page[0]->ID);
+        } else {
+            $custom_forgot_password_url = home_url('/forgot-password'); // Fallback
+        }
+    }
+    
+    return $custom_forgot_password_url;
+}
+add_filter('lostpassword_url', 'custom_forgot_password_url');
+
+
+// =============== Password Reset Page code ===========
+/**
+ * Enqueue scripts for AJAX password reset
+ */
+function job_listing_ajax_password_reset_scripts() {
+    // Only load on password reset page
+    if (is_page_template('template-password-reset.php')) {
+        // Make sure jQuery is loaded
+        wp_enqueue_script('jquery');
+        
+        // Load your existing custom-ajax.js file
+        wp_enqueue_script(
+            'custom-ajax-script', 
+            get_template_directory_uri() . '/js/custom-ajax.js', 
+            array('jquery'), 
+            '1.0', 
+            true
+        );
+        
+        // Localize script to pass PHP variables to JavaScript
+        wp_localize_script('custom-ajax-script', 'ajax_password_reset_object', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'redirecturl' => home_url('/login'),
+            'loadingmessage' => __('Resetting your password, please wait...', 'job-listing'),
+            'passwords_do_not_match' => __('Passwords do not match.', 'job-listing'),
+            'password_too_short' => __('Password must be at least 8 characters long.', 'job-listing'),
+            'password_reset_success' => __('Your password has been reset successfully. Please log in with your new password.', 'job-listing'),
+            'error_occurred' => __('An error occurred. Please try again.', 'job-listing')
+        ));
+    }
+}
+add_action('wp_enqueue_scripts', 'job_listing_ajax_password_reset_scripts', 999);
+
+/**
+ * AJAX password reset handler
+ */
+function ajax_password_reset_handler() {
+    // Check nonce for security
+    check_ajax_referer('ajax-password-reset-nonce', 'security');
+    
+    // Get form data
+    $key = sanitize_text_field($_POST['key']);
+    $login = sanitize_text_field($_POST['login']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    
+    // Get redirect URL
+    $redirect_to = isset($_POST['redirect_to']) ? $_POST['redirect_to'] : home_url('/login');
+    
+    // Basic validation
+    $errors = array();
+    
+    // Check if passwords match
+    if ($password !== $confirm_password) {
+        $errors[] = __('Passwords do not match.', 'job-listing');
+    }
+    
+    // Check password strength
+    if (strlen($password) < 8) {
+        $errors[] = __('Password must be at least 8 characters long.', 'job-listing');
+    }
+    
+    // If there are errors, return them
+    if (!empty($errors)) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => implode('<br>', $errors)
+        ));
+        die();
+    }
+    
+    // Verify the key
+    $user = check_password_reset_key($key, $login);
+    
+    if (is_wp_error($user)) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => __('Invalid or expired password reset link. Please request a new one.', 'job-listing')
+        ));
+        die();
+    }
+    
+    // Reset the password (removed automatic login)
+    reset_password($user, $password);
+
+
+    $email = $user->user_email;
+    $full_name = $user->display_name;
+
+    $pwdcngsms = 'Congratulations! Your password changed successfully.';
+
+    // Add notification to database
+    add_user_notification(
+        $user_id,
+        $pwdcngsms,
+        'resetpassword',
+        null
+    );
+
+    $subject = 'Password Reseted Successfully';
+    $message  = 'Dear ' . $full_name . ",\n\n";
+    $message .= 'Congratulations! Your password Reseted successfully. You can now log in with your new password. ';
+    $message .= 'If you did not initiate this change, please contact our support team immediately.' . "\n\n";
+    $message .= "Best regards,\n";
+    $message .= get_bloginfo('name');
+
+    $headers = array('Content-Type: text/plain; charset=UTF-8');
+
+    $email_notifications = get_user_meta($user_id, 'email_notifications', true);
+    if ($email_notifications !== '0') { // Send email only if notifications are enabled
+    // Try sending email
+    $mail_sent = wp_mail($email, $subject, $message, $headers);
+    }
+
+    // Log result
+    if ($mail_sent) {
+        error_log("✅ Password change email sent successfully to: $email");
+    } else {
+        error_log("❌ Failed to send password change email to: $email");
+    }
+
+
+
+    // Return success with redirect to login page
+    echo json_encode(array(
+        'success' => true,
+        'message' => __('Your password has been reset successfully. Please log in with your new password.', 'job-listing'),
+        'redirect' => $redirect_to . '?reset=success'
+    ));
+    
+    die();
+}
+add_action('wp_ajax_nopriv_ajaxpasswordreset', 'ajax_password_reset_handler');
+add_action('wp_ajax_ajaxpasswordreset', 'ajax_password_reset_handler');
+
+
+/**
+ * Redirect default password reset page to custom password reset page
+ */
+function redirect_to_custom_password_reset() {
+    // Check if we're on the default password reset page
+    if ($GLOBALS['pagenow'] === 'wp-login.php' && isset($_GET['action']) && $_GET['action'] === 'rp') {
+        // Get the key and login from the URL
+        $key = isset($_GET['key']) ? $_GET['key'] : '';
+        $login = isset($_GET['login']) ? $_GET['login'] : '';
+        $redirect_to = isset($_GET['redirect_to']) ? $_GET['redirect_to'] : '';
+        
+        // Build the custom reset URL
+        $custom_reset_url = get_permalink(get_page_by_path('password-reset'));
+        
+        // If we can't find the page by path, try to find it by template
+        if (!$custom_reset_url) {
+            $reset_page = get_pages(array(
+                'meta_key' => '_wp_page_template',
+                'meta_value' => 'password-reset.php'
+            ));
+            
+            if ($reset_page) {
+                $custom_reset_url = get_permalink($reset_page[0]->ID);
+            } else {
+                $custom_reset_url = home_url('/password-reset'); // Fallback
+            }
+        }
+        
+        // Add parameters
+        $custom_reset_url = add_query_arg(array(
+            'key' => $key,
+            'login' => $login,
+            'redirect_to' => $redirect_to
+        ), $custom_reset_url);
+        
+        wp_redirect($custom_reset_url);
+        exit;
+    }
+}
+add_action('init', 'redirect_to_custom_password_reset');
+
+/**
+ * Handle invalid key error message
+ */
+function handle_invalid_key_error() {
+    if (isset($_GET['reset']) && $_GET['reset'] === 'invalidkey') {
+        ?>
+        <div class="alert alert-danger">
+            <?php _e('Invalid or expired password reset link. Please request a new one.', 'job-listing'); ?>
+        </div>
+        <?php
+    }
+}
+add_action('template_redirect', 'handle_invalid_key_error');
+
+
+
+
+
+// Change Password Handler ************************
+function change_password_handler() {
+    check_ajax_referer('profile_nonce', 'nonce');
+    
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        wp_send_json_error('User not logged in');
+    }
+    
+    $current_password = isset($_POST['current_password']) ? trim($_POST['current_password']) : '';
+    $new_password = isset($_POST['new_password']) ? trim($_POST['new_password']) : '';
+    $confirm_password = isset($_POST['confirm_password']) ? trim($_POST['confirm_password']) : '';
+    
+    // Validate inputs
+    if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
+        wp_send_json_error('All fields are required');
+    }
+    
+    // Verify current password
+    $user = get_user_by('id', $user_id);
+    if (!wp_check_password($current_password, $user->user_pass, $user_id)) {
+        wp_send_json_error('Current password is incorrect');
+    }
+    
+    // Check if new passwords match
+    if ($new_password !== $confirm_password) {
+        wp_send_json_error('New passwords do not match');
+    }
+    
+    // Validate password strength
+    if (strlen($new_password) < 8) {
+        wp_send_json_error('Password must be at least 8 characters long');
+    }
+    
+    // Update password
+    wp_set_password($new_password, $user_id);
+    // Notification + Email
+    $email = $user->user_email;
+    $full_name = $user->display_name;
+
+    $pwdcngsms = 'Congratulations! Your password changed successfully.';
+
+    // Add notification to database
+    add_user_notification(
+        $user_id,
+        $pwdcngsms,
+        'passwordchange',
+        null
+    );
+
+    $subject = 'Password Changed';
+    $message  = 'Dear ' . $full_name . ",\n\n";
+    $message .= 'Congratulations! Your password changed successfully. You can now log in with your new password. ';
+    $message .= 'If you did not initiate this change, please contact our support team immediately.' . "\n\n";
+    $message .= "Best regards,\n";
+    $message .= get_bloginfo('name');
+
+    $headers = array('Content-Type: text/plain; charset=UTF-8');
+    $email_notifications = get_user_meta($user_id, 'email_notifications', true);
+    if ($email_notifications !== '0') { // Send email only if notifications are enabled
+    // Try sending email
+    $mail_sent = wp_mail($email, $subject, $message, $headers);
+    }
+    // Keep user logged in
+    wp_set_auth_cookie($user_id);
+    wp_set_current_user($user_id);
+    
+    // Log the user out after password change
+    //wp_logout();
+    
+    wp_send_json_success('Password changed successfully.');
+}
+add_action('wp_ajax_change_password', 'change_password_handler');
+
+
+// Email Notifications Toggle Handler
+function email_notifications_handler() {
+    check_ajax_referer('profile_nonce', 'nonce');
+    
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        wp_send_json_error('User not logged in');
+    }
+    
+    $enabled = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
+    
+    update_user_meta($user_id, 'email_notifications', $enabled ? '1' : '0');
+    
+    wp_send_json_success('Email notifications updated successfully');
+}
+add_action('wp_ajax_email_notifications', 'email_notifications_handler');

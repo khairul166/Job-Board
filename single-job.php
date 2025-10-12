@@ -110,10 +110,13 @@ if (have_posts()) :
             </div>
         </div>
     </section>
+
     <!-- Main Content -->
     <div class="container my-5">
         <div class="row">
             <div class="col-lg-8">
+            <div class="breadcums">    <?php job_portal_breadcrumbs(); ?></div>
+
                 <!-- Deadline Alert -->
                 <div class="deadline-alert <?php echo $deadline_passed ? 'deadline-passed' : ''; ?>">
                     <i class="fas fa-exclamation-triangle me-2"></i>
@@ -204,11 +207,11 @@ if (have_posts()) :
         <?php if (is_user_logged_in()) : 
             if($already_applied) :
             ?>
-            <button class="btn btn-success w-100 btn-lg" data-bs-toggle="modal" data-bs-target="#applyModal" disabled>
+            <button id="apply-btn" class="btn btn-success w-100 btn-lg" data-bs-toggle="modal" data-bs-target="#applyModal" disabled>
                 <i class="fas fa-paper-plane me-2"></i><?php _e('Already Applied', 'job-listing'); ?>
             </button>
             <?php else : ?>
-                <button class="btn btn-success w-100 btn-lg" data-bs-toggle="modal" data-bs-target="#applyModal">
+                <button id="apply-btn" class="btn btn-success w-100 btn-lg" data-bs-toggle="modal" data-bs-target="#applyModal">
                 <i class="fas fa-paper-plane me-2"></i><?php _e('Apply Now', 'job-listing'); ?>
             </button>
             <?php endif; ?>
@@ -415,7 +418,7 @@ if (have_posts()) :
             </div>
             <div class="modal-footer">
 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-<button type="button" class="btn btn-primary" id="applysubmitBtn">
+<button type="button" class="btn btn-success" id="applysubmitBtn">
     <i class="fas fa-paper-plane me-2"></i>Apply
 </button>
             </div>
