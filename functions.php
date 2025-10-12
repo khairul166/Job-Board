@@ -2158,7 +2158,7 @@ function job_applications_email_settings_page() {
         foreach ($tabs as $tab_id => $tab_name) {
             $url = add_query_arg(
                 array(
-                    'page' => 'job_applications_settings',
+                    'page' => 'job_applications_email_settings',
                     'tab'  => $tab_id
                 ),
                 admin_url('admin.php')
