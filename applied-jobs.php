@@ -1,8 +1,6 @@
 <?php
 /**
  * Template Name: Applied Jobs
- *
- * @package Job_Listing_Theme
  */
 
 get_header();

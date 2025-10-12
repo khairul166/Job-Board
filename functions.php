@@ -6,6 +6,7 @@ require_once get_template_directory() . '/inc/footer-menu-walker.php';
 require_once get_template_directory() . '/inc/footer-menu-walker-simple.php';
 require_once get_template_directory() . '/inc/custom-metabox.php';
 require_once get_template_directory() . '/inc/ajax-handler.php';
+require_once get_template_directory() . '/inc/page-creation.php';
 
 
 function job_listing_theme_setup() {
