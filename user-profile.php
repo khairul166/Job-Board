@@ -152,7 +152,7 @@ get_header();
                 <div class="col-md-6">
                     <h2 class="mb-1"><?php echo esc_html(!empty($full_name) ? $full_name : $user_data->display_name); ?></h2>
                     <p class="text-muted mb-2"><i class="fas fa-phone me-2"></i> <?php echo esc_html($contact_number); ?>, <?php echo esc_html($alt_contact); ?></p>
-                    <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i> <?php echo esc_html($present_address); ?></p>
+                    <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i> <?php echo esc_html($presentaddressline); ?></p>
                 </div>
                 <div class="col-md-4">
                     <div class="d-flex justify-content-between mb-2">

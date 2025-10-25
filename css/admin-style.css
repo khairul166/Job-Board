@@ -841,6 +841,11 @@ color: white;
         padding: 20px;
     }
     
+#cvModal .modal-content {
+    width: 70% !important;
+}
+
+
     .close-modal {
         font-size: 24px;
         cursor: pointer;

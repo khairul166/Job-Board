@@ -34,18 +34,51 @@ $job_title = get_user_meta($user_id, 'job_title', true);
 $company = get_user_meta($user_id, 'company', true);
 $location = get_user_meta($user_id, 'location', true);
 
-// Personal information
-$father_name = get_user_meta($user_id, 'father_name', true);
-$mother_name = get_user_meta($user_id, 'mother_name', true);
-$dob = get_user_meta($user_id, 'dob', true);
-$gender = get_user_meta($user_id, 'gender', true);
-$blood_group = get_user_meta($user_id, 'blood_group', true);
-$nationality = get_user_meta($user_id, 'nationality', true);
-$birth_country = get_user_meta($user_id, 'birth_country', true);
-$contact_number = get_user_meta($user_id, 'contact_number', true);
-$alt_contact = get_user_meta($user_id, 'alt_contact', true);
-$present_address = get_user_meta($user_id, 'present_address', true);
-$permanent_address = get_user_meta($user_id, 'permanent_address', true);
+    // Get user meta data
+    $about_me = get_user_meta($user_id, 'about_me', true);
+    $full_name = get_user_meta($user_id, 'full_name', true);
+    $job_title = get_user_meta($user_id, 'job_title', true);
+    $company = get_user_meta($user_id, 'company', true);
+    $location = get_user_meta($user_id, 'location', true);
+    // Personal information
+    $father_name = get_user_meta($user_id, 'father_name', true);
+    $mother_name = get_user_meta($user_id, 'mother_name', true);
+    $dob = get_user_meta($user_id, 'dob', true);
+    $gender = get_user_meta($user_id, 'gender', true);
+    $blood_group = get_user_meta($user_id, 'blood_group', true);
+    $nationality = get_user_meta($user_id, 'nationality', true);
+    $birth_country = get_user_meta($user_id, 'birth_country', true);
+    $contact_number = get_user_meta($user_id, 'contact_number', true);
+    $alt_contact = get_user_meta($user_id, 'alt_contact', true);
+    $present_address = get_user_meta($user_id, 'present_address', true);
+    $permanent_address = get_user_meta($user_id, 'permanent_address', true);
+    $placeofbirth = get_user_meta($user_id, 'placeofbirth', true);
+
+    // Address fields
+    $present_division = get_user_meta($user_id, 'present_division', true);
+    $present_district = get_user_meta($user_id, 'present_district', true);
+    $present_upazila = get_user_meta($user_id, 'present_upazila', true);
+    $present_postcode = get_user_meta($user_id, 'present_postcode', true);
+    $permanent_division = get_user_meta($user_id, 'permanent_division', true);
+    $permanent_district = get_user_meta($user_id, 'permanent_district', true);
+    $permanent_upazila = get_user_meta($user_id, 'permanent_upazila', true);
+    $permanent_postcode = get_user_meta($user_id, 'permanent_postcode', true);
+
+    // Create full address variables
+    $presentaddressline = '';
+    if (!empty($present_address)) $presentaddressline .= $present_address;
+    if (!empty($present_upazila)) $presentaddressline .= ($presentaddressline ? ', ' : '') . $present_upazila;
+    if (!empty($present_district)) $presentaddressline .= ($presentaddressline ? ', ' : '') . $present_district;
+    if (!empty($present_division)) $presentaddressline .= ($presentaddressline ? ', ' : '') . $present_division;
+    if (!empty($present_postcode)) $presentaddressline .= ($presentaddressline ? ' - ' : '') . $present_postcode;
+
+    $permanentaddressline = '';
+    if (!empty($permanent_address)) $permanentaddressline .= $permanent_address;
+    if (!empty($permanent_upazila)) $permanentaddressline .= ($permanentaddressline ? ', ' : '') . $permanent_upazila;
+    if (!empty($permanent_district)) $permanentaddressline .= ($permanentaddressline ? ', ' : '') . $permanent_district;
+    if (!empty($permanent_division)) $permanentaddressline .= ($permanentaddressline ? ', ' : '') . $permanent_division;
+    if (!empty($permanent_postcode)) $permanentaddressline .= ($permanentaddressline ? ' - ' : '') . $permanent_postcode;
+
 
 // Education
 $education_entries = get_user_meta($user_id, 'education', true);
@@ -112,7 +145,7 @@ if (!is_array($languages)) {
                         <h1 class="mb-0"><?php echo esc_html($full_name); ?></h1> 
                         <div class="contact-info">
                             <div class="contact-line">
-                                <i class="fas fa-map-marker-alt"></i> <?php echo esc_html($present_address); ?>
+                                <i class="fas fa-map-marker-alt"></i> <?php echo esc_html($presentaddressline); ?>
                             </div>
                             <div class="contact-line">
                                 <i class="fas fa-phone"></i> <?php echo esc_html($contact_number); ?>
@@ -380,12 +413,12 @@ if (!is_array($languages)) {
                     <tr>
                         <td class="field-label">Present Address</td>
                         <td class="separator">:</td>
-                        <td><?php echo esc_html($present_address); ?></td>
+                        <td><?php echo esc_html($presentaddressline); ?></td>
                     </tr>
                     <tr>
                         <td class="field-label">Permanent address</td>
                         <td class="separator">:</td>
-                        <td><?php echo esc_html($permanent_address); ?></td>
+                        <td><?php echo esc_html($permanentaddressline); ?></td>
                     </tr>
                 </tbody>
             </table>
